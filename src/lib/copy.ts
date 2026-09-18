@@ -1,0 +1,69 @@
+export const brand = {
+  name: "Namoon Compass",
+  tagline: "Strategic direction for brands in complex markets",
+} as const;
+
+export const socialLinks = [
+  {
+    id: "instagram",
+    label: "Instagram",
+    href: "https://www.instagram.com/youth_marketing_agency/",
+  },
+  {
+    id: "facebook",
+    label: "Facebook",
+    href: "https://www.facebook.com/profile.php?id=61577766861545",
+  },
+] as const;
+
+export const hero = {
+  eyebrow: "Marketing Agency",
+  headline: "WHERE NOISE TURNS INTO DIRECTION.",
+  subheading:
+    "We translate market ambiguity into decisive brand strategy — with precision across digital, physical, and cultural touchpoints.",
+} as const;
+
+export type Service = {
+  id: string;
+  index: string;
+  title: string;
+  description: string;
+};
+
+export const services: Service[] = [
+  {
+    id: "web-dev",
+    index: "01",
+    title: "Web Development",
+    description:
+      "Architectural digital products — fast, refined, and built to convert with quiet confidence.",
+  },
+  {
+    id: "video-audio",
+    index: "02",
+    title: "Video & Audio",
+    description:
+      "Editorial motion and sound design that carries narrative weight without spectacle.",
+  },
+  {
+    id: "digital-ads",
+    index: "03",
+    title: "Digital Advertising",
+    description:
+      "Measured campaigns with creative restraint — reach the right audience, not the loudest one.",
+  },
+  {
+    id: "consulting",
+    index: "04",
+    title: "Management Consulting",
+    description:
+      "Operational clarity and positioning frameworks for teams navigating structural change.",
+  },
+  {
+    id: "print",
+    index: "05",
+    title: "Print Design",
+    description:
+      "Tactile brand systems with the same rigor as their digital counterparts.",
+  },
+];
