@@ -16,6 +16,14 @@ export const socialLinks = [
   },
 ] as const;
 
+export const contact = {
+  email: "youthmarketingll@gmail.com",
+  phones: [
+    { display: "6023 8717", tel: "+97660238717" },
+    { display: "8538 6530", tel: "+97685386530" },
+  ],
+} as const;
+
 export const hero = {
   eyebrow: "Marketing Agency",
   headline: "WHERE NOISE TURNS INTO DIRECTION.",
@@ -65,5 +73,12 @@ export const services: Service[] = [
     title: "Print Design",
     description:
       "Tactile brand systems with the same rigor as their digital counterparts.",
+  },
+  {
+    id: "chatbot",
+    index: "06",
+    title: "Chatbot Services",
+    description:
+      "Intelligent conversational agents that guide customers, qualify leads, and support your brand around the clock.",
   },
 ];

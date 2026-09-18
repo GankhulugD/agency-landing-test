@@ -46,10 +46,21 @@ const defaultViewport: ViewportProfile = {
   cameraY: 0.55,
   lookAtY: 0,
   starCount: 2500,
+  ringSegments: 128,
+  tubeSegments: 16,
+  sphereSegments: 64,
+  enableBloom: true,
+  enableTransmission: true,
+  envIntensity: 0.38,
 };
 
 const ViewportContext = createContext<ViewportProfile>(defaultViewport);
 const useViewport = () => useContext(ViewportContext);
+
+function getOptimalDpr(): number | [number, number] {
+  if (typeof window === "undefined") return 1;
+  return [1, Math.min(2, window.devicePixelRatio || 1)];
+}
 
 function buildViewport(width: number): ViewportProfile {
   const mobile = width < 768;
@@ -63,7 +74,13 @@ function buildViewport(width: number): ViewportProfile {
       cameraZ: 6.5,
       cameraY: 0.72,
       lookAtY: 0.4,
-      starCount: 1200,
+      starCount: 650,
+      ringSegments: 32,
+      tubeSegments: 8,
+      sphereSegments: 32,
+      enableBloom: false,
+      enableTransmission: false,
+      envIntensity: 0.22,
     };
   }
 
@@ -75,7 +92,13 @@ function buildViewport(width: number): ViewportProfile {
       cameraZ: 5.8,
       cameraY: 0.62,
       lookAtY: 0.15,
-      starCount: 1800,
+      starCount: 1400,
+      ringSegments: 64,
+      tubeSegments: 12,
+      sphereSegments: 48,
+      enableBloom: true,
+      enableTransmission: true,
+      envIntensity: 0.3,
     };
   }
 
@@ -101,7 +124,7 @@ function useDeviceProfile() {
       const viewport = buildViewport(window.innerWidth);
       setProfile({
         fallback: reduced,
-        dpr: reduced ? 1 : viewport.isMobile ? 1 : [1, 1.5],
+        dpr: reduced ? 1 : getOptimalDpr(),
         viewport,
       });
     };
@@ -248,20 +271,25 @@ function HeroScene() {
       <pointLight position={[-6, -4, 4]} intensity={1.2} color="#d1c7bd" />
       <hemisphereLight args={["#e0e6ed", "#080808", 0.28]} />
 
-      <Environment preset="warehouse" environmentIntensity={0.38} />
+      <Environment
+        preset="warehouse"
+        environmentIntensity={viewport.envIntensity}
+      />
 
       <CosmicStarfield starCount={viewport.starCount} />
 
       <CosmicMorph scroll={scroll} pointer={pointer} viewport={viewport} />
 
-      <EffectComposer multisampling={0}>
-        <Bloom
-          intensity={bloomIntensity}
-          luminanceThreshold={0.22}
-          luminanceSmoothing={0.35}
-          mipmapBlur
-        />
-      </EffectComposer>
+      {viewport.enableBloom && (
+        <EffectComposer multisampling={0}>
+          <Bloom
+            intensity={bloomIntensity}
+            luminanceThreshold={0.22}
+            luminanceSmoothing={0.35}
+            mipmapBlur
+          />
+        </EffectComposer>
+      )}
     </>
   );
 }
@@ -316,21 +344,23 @@ function HeroCanvas({
 function CursorFollower() {
   const dotRef = useRef<HTMLDivElement>(null);
   const ringRef = useRef<HTMLDivElement>(null);
-  const pos = useRef({ x: -100, y: -100 });
+  const ringPos = useRef({ x: -100, y: -100 });
   const target = useRef({ x: -100, y: -100 });
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       target.current = { x: e.clientX, y: e.clientY };
     };
-    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mousemove", onMove, { passive: true });
     let id: number;
     const tick = () => {
-      pos.current.x += (target.current.x - pos.current.x) * 0.11;
-      pos.current.y += (target.current.y - pos.current.y) * 0.11;
-      const t = `translate3d(${pos.current.x}px,${pos.current.y}px,0) translate(-50%,-50%)`;
-      if (dotRef.current) dotRef.current.style.transform = t;
-      if (ringRef.current) ringRef.current.style.transform = t;
+      const { x, y } = target.current;
+      ringPos.current.x += (x - ringPos.current.x) * 0.72;
+      ringPos.current.y += (y - ringPos.current.y) * 0.72;
+      const dotT = `translate3d(${x}px,${y}px,0) translate(-50%,-50%)`;
+      const ringT = `translate3d(${ringPos.current.x}px,${ringPos.current.y}px,0) translate(-50%,-50%)`;
+      if (dotRef.current) dotRef.current.style.transform = dotT;
+      if (ringRef.current) ringRef.current.style.transform = ringT;
       id = requestAnimationFrame(tick);
     };
     id = requestAnimationFrame(tick);
@@ -382,16 +412,16 @@ function ServiceRow({ service }: { service: Service }) {
   return (
     <GlassCard
       data-service-card
-      className="group flex flex-col gap-3 p-5 sm:flex-row sm:items-start sm:gap-8 sm:p-6"
+      className="group flex flex-col gap-1.5 p-3.5 sm:flex-row sm:items-start sm:gap-4 sm:p-4"
     >
       <span className="font-mono text-[10px] tracking-[0.2em] text-champagne/70">
         {service.index}
       </span>
-      <div className="flex-1">
-        <h3 className="text-sm font-medium tracking-tight text-bone">
+      <div className="min-w-0 flex-1">
+        <h3 className="text-[13px] font-medium tracking-tight text-bone sm:text-sm">
           {service.title}
         </h3>
-        <p className="mt-1.5 text-[13px] leading-relaxed text-bone/45 transition-colors duration-500 group-hover:text-bone/60">
+        <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-bone/45 transition-colors duration-500 group-hover:text-bone/60 sm:mt-1 sm:text-[12px]">
           {service.description}
         </p>
       </div>
@@ -484,16 +514,18 @@ export function Hero() {
 
     gsap.set(sub, { autoAlpha: 0.6 });
     gsap.set(grid, { autoAlpha: 0 });
-    gsap.set(cards, { autoAlpha: 0, y: 28 });
+    gsap.set(cards, { autoAlpha: 0 });
+
+    const mobile = window.innerWidth < 768;
 
     const ctx = gsap.context(() => {
       const tl = gsap.timeline({
         scrollTrigger: {
           trigger: section,
           start: "top top",
-          end: "+=90%",
+          end: mobile ? "bottom bottom" : "+=90%",
           scrub: true,
-          pin: true,
+          pin: !mobile,
           anticipatePin: 0,
           invalidateOnRefresh: true,
         },
@@ -534,9 +566,8 @@ export function Hero() {
         cards,
         {
           autoAlpha: 1,
-          y: 0,
-          stagger: 0.03,
-          duration: 0.1,
+          stagger: 0.015,
+          duration: 0.08,
           ease: "power1.out",
         },
         0.52
@@ -549,7 +580,7 @@ export function Hero() {
       ctx.revert();
       window.removeEventListener("resize", onResize);
     };
-  }, [fallback]);
+  }, [fallback, viewport.isMobile]);
 
   if (fallback) return <HeroFallback />;
 
@@ -561,82 +592,164 @@ export function Hero() {
 
       <section
         ref={sectionRef}
-        className="relative h-[100dvh] w-full overflow-hidden bg-obsidian"
+        className={cn(
+          "relative w-full bg-obsidian",
+          viewport.isMobile
+            ? "min-h-0"
+            : "h-[100dvh] overflow-hidden"
+        )}
         aria-label="Namoon Compass hero"
         onMouseMove={onPointerMove}
         onTouchMove={onTouchMove}
       >
-        {/* Subtle editorial grid — revealed on scroll */}
-        <div
-          ref={gridRef}
-          className="hero-grid pointer-events-none absolute inset-0 z-[1] opacity-0"
-          aria-hidden
-        />
-
-        {/* WebGL — pointer-events-none so touch scroll is never blocked */}
-        <div className="pointer-events-none absolute inset-0 z-0">
-          <HeroCanvas
-            scrollState={scrollState.current}
-            pointer={pointer.current}
-            dpr={dpr}
-            viewport={viewport}
-          />
-        </div>
-
-        {/* UI */}
-        <div className="relative z-10 flex h-full flex-col px-4 sm:px-10 lg:px-16">
-          {/* Header */}
-          <header className="flex shrink-0 items-center justify-between py-5 sm:py-8">
-            <span className="font-mono text-[9px] uppercase tracking-[0.35em] text-bone/40 sm:text-[10px] sm:tracking-[0.4em]">
-              {brand.name}
-            </span>
-            <div className="flex items-center gap-4 sm:gap-6">
-              <SocialLinks />
-              <span className="hidden font-mono text-[10px] tracking-[0.25em] text-bone/25 md:block">
-                Scroll
-              </span>
+        {viewport.isMobile ? (
+          <>
+            {/* Sticky 3D backdrop — compass visible behind cards while scrolling */}
+            <div className="pointer-events-none sticky top-0 -mb-[100dvh] h-[100dvh] w-full">
+              <div
+                ref={gridRef}
+                className="hero-grid absolute inset-0 z-[1] opacity-0"
+                aria-hidden
+              />
+              <div className="absolute inset-0 z-0">
+                <HeroCanvas
+                  scrollState={scrollState.current}
+                  pointer={pointer.current}
+                  dpr={dpr}
+                  viewport={viewport}
+                />
+              </div>
             </div>
-          </header>
 
-          {/* Centered headline — initial state */}
-          <div className="pointer-events-none absolute inset-x-0 top-[28%] flex -translate-y-1/2 justify-center px-4 sm:top-[34%] md:top-[38%]">
-            <div className="max-w-4xl text-center">
-              <p className="mb-3 font-mono text-[9px] uppercase tracking-[0.3em] text-champagne/55 sm:mb-5 sm:text-[10px] sm:tracking-[0.35em]">
-                {hero.eyebrow}
-              </p>
-              <h1
-                ref={headlineRef}
-                className="text-3xl font-medium leading-[1.08] tracking-tighter text-bone break-words sm:text-5xl md:text-6xl lg:text-7xl"
-              >
-                {headlineWords.map((word, i) => (
-                  <span key={`${word}-${i}`} className="inline-block overflow-hidden">
-                    <span data-word className="inline-block will-change-transform">
-                      {word}
-                      {i < headlineWords.length - 1 ? "\u00A0" : ""}
-                    </span>
+            <div className="relative z-10">
+              <div className="relative flex min-h-[100dvh] flex-col px-4">
+                <header className="flex shrink-0 items-center justify-between py-4">
+                  <span className="font-mono text-[9px] uppercase tracking-[0.35em] text-bone/40">
+                    {brand.name}
                   </span>
-                ))}
-              </h1>
-              <p
-                ref={subRef}
-                className="mx-auto mt-4 max-w-md px-2 text-[12px] leading-relaxed text-bone/45 sm:mt-6 sm:text-[13px]"
-              >
-                {hero.subheading}
-              </p>
-            </div>
-          </div>
+                  <SocialLinks />
+                </header>
+                <div className="pointer-events-none absolute inset-x-0 top-[28%] flex -translate-y-1/2 justify-center px-4">
+                  <div className="max-w-4xl text-center">
+                    <p className="mb-3 font-mono text-[9px] uppercase tracking-[0.3em] text-champagne/55">
+                      {hero.eyebrow}
+                    </p>
+                    <h1
+                      ref={headlineRef}
+                      className="text-3xl font-medium leading-[1.08] tracking-tighter text-bone break-words"
+                    >
+                      {headlineWords.map((word, i) => (
+                        <span
+                          key={`${word}-${i}`}
+                          className="inline-block overflow-hidden"
+                        >
+                          <span
+                            data-word
+                            className="inline-block will-change-transform"
+                          >
+                            {word}
+                            {i < headlineWords.length - 1 ? "\u00A0" : ""}
+                          </span>
+                        </span>
+                      ))}
+                    </h1>
+                    <p
+                      ref={subRef}
+                      className="mx-auto mt-4 max-w-md px-2 text-[12px] leading-relaxed text-bone/45"
+                    >
+                      {hero.subheading}
+                    </p>
+                  </div>
+                </div>
+              </div>
 
-          {/* Services — bottom, revealed on scroll end */}
-          <div
-            ref={servicesRef}
-            id="services"
-            className="mt-auto grid grid-cols-1 gap-2 pb-6 sm:grid-cols-2 sm:pb-10 lg:grid-cols-3 lg:gap-3"
-          >
-            {services.map((service) => (
-              <ServiceRow key={service.id} service={service} />
-            ))}
-          </div>
-        </div>
+              <div
+                ref={servicesRef}
+                id="services"
+                className="grid grid-cols-1 gap-2 px-4 pb-10 pt-2"
+              >
+                {services.map((service) => (
+                  <ServiceRow key={service.id} service={service} />
+                ))}
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="pointer-events-none absolute inset-0 z-0">
+              <div
+                ref={gridRef}
+                className="hero-grid absolute inset-0 z-[1] opacity-0"
+                aria-hidden
+              />
+              <div className="absolute inset-0 z-0">
+                <HeroCanvas
+                  scrollState={scrollState.current}
+                  pointer={pointer.current}
+                  dpr={dpr}
+                  viewport={viewport}
+                />
+              </div>
+            </div>
+
+            <div className="relative z-10 flex h-full min-h-0 flex-col px-4 sm:px-10 lg:px-16">
+              <header className="flex shrink-0 items-center justify-between py-4 sm:py-8">
+                <span className="font-mono text-[9px] uppercase tracking-[0.35em] text-bone/40 sm:text-[10px] sm:tracking-[0.4em]">
+                  {brand.name}
+                </span>
+                <div className="flex items-center gap-4 sm:gap-6">
+                  <SocialLinks />
+                  <span className="hidden font-mono text-[10px] tracking-[0.25em] text-bone/25 md:block">
+                    Scroll
+                  </span>
+                </div>
+              </header>
+
+              <div className="pointer-events-none absolute inset-x-0 top-[28%] flex -translate-y-1/2 justify-center px-4 sm:top-[34%] md:top-[38%]">
+                <div className="max-w-4xl text-center">
+                  <p className="mb-3 font-mono text-[9px] uppercase tracking-[0.3em] text-champagne/55 sm:mb-5 sm:text-[10px] sm:tracking-[0.35em]">
+                    {hero.eyebrow}
+                  </p>
+                  <h1
+                    ref={headlineRef}
+                    className="text-3xl font-medium leading-[1.08] tracking-tighter text-bone break-words sm:text-5xl md:text-6xl lg:text-7xl"
+                  >
+                    {headlineWords.map((word, i) => (
+                      <span
+                        key={`${word}-${i}`}
+                        className="inline-block overflow-hidden"
+                      >
+                        <span
+                          data-word
+                          className="inline-block will-change-transform"
+                        >
+                          {word}
+                          {i < headlineWords.length - 1 ? "\u00A0" : ""}
+                        </span>
+                      </span>
+                    ))}
+                  </h1>
+                  <p
+                    ref={subRef}
+                    className="mx-auto mt-4 max-w-md px-2 text-[12px] leading-relaxed text-bone/45 sm:mt-6 sm:text-[13px]"
+                  >
+                    {hero.subheading}
+                  </p>
+                </div>
+              </div>
+
+              <div
+                ref={servicesRef}
+                id="services"
+                className="mt-auto w-full origin-bottom scale-[0.98] grid grid-cols-1 gap-1.5 pb-2 sm:grid-cols-2 sm:gap-1.5 sm:pb-6 lg:grid-cols-3 lg:gap-1.5 lg:pb-6"
+              >
+                {services.map((service) => (
+                  <ServiceRow key={service.id} service={service} />
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </section>
     </>
   );

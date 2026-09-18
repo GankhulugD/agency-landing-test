@@ -30,7 +30,16 @@ function setGroupFade(group: THREE.Group, scale: number, opacity: number) {
 
 /* ─── Image 3 black hole: void + horizontal disk + vertical lens halo ─── */
 
-function BlackHoleModel({ scroll }: { scroll: MorphUniforms }) {
+function BlackHoleModel({
+  scroll,
+  viewport,
+}: {
+  scroll: MorphUniforms;
+  viewport: ViewportProfile;
+}) {
+  const { ringSegments, tubeSegments, sphereSegments, enableTransmission } =
+    viewport;
+  const arcSegments = Math.max(48, Math.floor(ringSegments * 0.75));
   const groupRef = useRef<THREE.Group>(null);
   const diskRef = useRef<THREE.Group>(null);
 
@@ -86,11 +95,13 @@ function BlackHoleModel({ scroll }: { scroll: MorphUniforms }) {
       {/* Thin horizontal accretion disk */}
       <group ref={diskRef} rotation={[1.12, 0.06, 0]} renderOrder={2}>
         <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[1.18, 0.022, 16, 128]} />
+          <torusGeometry args={[1.18, 0.022, tubeSegments, ringSegments]} />
           <meshStandardMaterial {...glowMat} transparent opacity={0.84} />
         </mesh>
         <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[1.18, 0.038, 12, 128]} />
+          <torusGeometry
+            args={[1.18, 0.038, Math.max(8, tubeSegments - 4), ringSegments]}
+          />
           <meshBasicMaterial
             color="#fff8f0"
             transparent
@@ -101,7 +112,9 @@ function BlackHoleModel({ scroll }: { scroll: MorphUniforms }) {
           />
         </mesh>
         <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[0.78, 0.014, 12, 96]} />
+          <torusGeometry
+            args={[0.78, 0.014, Math.max(8, tubeSegments - 4), arcSegments]}
+          />
           <meshBasicMaterial
             color="#ffffff"
             transparent
@@ -117,13 +130,25 @@ function BlackHoleModel({ scroll }: { scroll: MorphUniforms }) {
       <group renderOrder={1}>
         <mesh rotation={[Math.PI / 2, 0, 0]}>
           <torusGeometry
-            args={[LENS_R, LENS_TUBE, 32, 160, Math.PI * 0.94]}
+            args={[
+              LENS_R,
+              LENS_TUBE,
+              tubeSegments,
+              arcSegments,
+              Math.PI * 0.94,
+            ]}
           />
           <meshStandardMaterial {...lensArchMat} depthWrite={false} />
         </mesh>
         <mesh rotation={[Math.PI / 2, 0, 0]}>
           <torusGeometry
-            args={[LENS_R, LENS_TUBE * 1.6, 24, 160, Math.PI * 0.94]}
+            args={[
+              LENS_R,
+              LENS_TUBE * 1.6,
+              Math.max(8, tubeSegments - 4),
+              arcSegments,
+              Math.PI * 0.94,
+            ]}
           />
           <meshBasicMaterial
             color="#e2d4c1"
@@ -137,13 +162,25 @@ function BlackHoleModel({ scroll }: { scroll: MorphUniforms }) {
 
         <mesh rotation={[Math.PI / 2, 0, Math.PI]}>
           <torusGeometry
-            args={[LENS_R, LENS_TUBE, 32, 160, Math.PI * 0.94]}
+            args={[
+              LENS_R,
+              LENS_TUBE,
+              tubeSegments,
+              arcSegments,
+              Math.PI * 0.94,
+            ]}
           />
           <meshStandardMaterial {...lensArchMat} depthWrite={false} />
         </mesh>
         <mesh rotation={[Math.PI / 2, 0, Math.PI]}>
           <torusGeometry
-            args={[LENS_R, LENS_TUBE * 1.6, 24, 160, Math.PI * 0.94]}
+            args={[
+              LENS_R,
+              LENS_TUBE * 1.6,
+              Math.max(8, tubeSegments - 4),
+              arcSegments,
+              Math.PI * 0.94,
+            ]}
           />
           <meshBasicMaterial
             color="#e2d4c1"
@@ -156,26 +193,39 @@ function BlackHoleModel({ scroll }: { scroll: MorphUniforms }) {
         </mesh>
       </group>
 
-      {/* Subtle outer refraction ring */}
-      <mesh rotation={[Math.PI / 2, 0, 0]} renderOrder={0}>
-        <torusGeometry args={[1.32, 0.022, 16, 128]} />
-        <MeshTransmissionMaterial
-          backside
-          samples={6}
-          resolution={384}
-          transmission={0.94}
-          thickness={0.35}
-          roughness={0.1}
-          ior={1.15}
-          chromaticAberration={0.03}
-          color="#e0e6ed"
-          background={new THREE.Color("#080808")}
-        />
-      </mesh>
+      {/* Outer refraction ring — skipped on mobile (expensive transmission shader) */}
+      {enableTransmission ? (
+        <mesh rotation={[Math.PI / 2, 0, 0]} renderOrder={0}>
+          <torusGeometry args={[1.32, 0.022, tubeSegments, ringSegments]} />
+          <MeshTransmissionMaterial
+            backside
+            samples={6}
+            resolution={384}
+            transmission={0.94}
+            thickness={0.35}
+            roughness={0.1}
+            ior={1.15}
+            chromaticAberration={0.03}
+            color="#e0e6ed"
+            background={new THREE.Color("#080808")}
+          />
+        </mesh>
+      ) : (
+        <mesh rotation={[Math.PI / 2, 0, 0]} renderOrder={0}>
+          <torusGeometry args={[1.32, 0.022, tubeSegments, ringSegments]} />
+          <meshBasicMaterial
+            color="#d8dde3"
+            transparent
+            opacity={0.12}
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+      )}
 
       {/* Event horizon — opaque void drawn last, always crisp */}
       <mesh renderOrder={20}>
-        <sphereGeometry args={[BH_R, 64, 64]} />
+        <sphereGeometry args={[BH_R, sphereSegments, sphereSegments]} />
         <meshBasicMaterial
           color="#000000"
           toneMapped={false}
@@ -192,7 +242,14 @@ function BlackHoleModel({ scroll }: { scroll: MorphUniforms }) {
 const NEEDLE_HALF = 0.37;
 const NEEDLE_RADIUS = 0.066;
 
-function CompassNeedle({ pointer }: { pointer: Pointer }) {
+function CompassNeedle({
+  pointer,
+  sphereSegments,
+}: {
+  pointer: Pointer;
+  sphereSegments: number;
+}) {
+  const pivotSeg = Math.max(12, Math.floor(sphereSegments * 0.35));
   const needleRef = useRef<THREE.Group>(null);
   const spring = useRef({ y: 0, x: 0, vy: 0, vx: 0 });
 
@@ -219,7 +276,7 @@ function CompassNeedle({ pointer }: { pointer: Pointer }) {
     <group ref={needleRef}>
       {/* Pivot — dead center */}
       <mesh>
-        <sphereGeometry args={[0.034, 20, 20]} />
+        <sphereGeometry args={[0.034, pivotSeg, pivotSeg]} />
         <meshStandardMaterial
           color="#b8b8b8"
           metalness={0.75}
@@ -253,9 +310,11 @@ function CompassNeedle({ pointer }: { pointer: Pointer }) {
 function CompassModel({
   scroll,
   pointer,
+  viewport,
 }: {
   scroll: MorphUniforms;
   pointer: Pointer;
+  viewport: ViewportProfile;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const glassMat = useRef(
@@ -277,6 +336,22 @@ function CompassModel({
       return mat;
     })()
   );
+  const mobileGlassMat = useRef(
+    (() => {
+      const mat = new THREE.MeshPhysicalMaterial({
+        transparent: true,
+        opacity: 0.15,
+        roughness: 0.05,
+        metalness: 0,
+        clearcoat: 0.5,
+        clearcoatRoughness: 0.1,
+        depthWrite: false,
+        envMapIntensity: 0.15,
+      });
+      mat.userData.baseOpacity = 0.15;
+      return mat;
+    })()
+  );
 
   useFrame((state) => {
     const m = scroll.morph;
@@ -293,12 +368,22 @@ function CompassModel({
 
   return (
     <group ref={groupRef} visible={false}>
-      <CompassNeedle pointer={pointer} />
+      <CompassNeedle
+        pointer={pointer}
+        sphereSegments={viewport.sphereSegments}
+      />
 
-      {/* Ultra-thin crystal bubble — barely visible shell */}
+      {/* Crystal shell — lightweight material on mobile (no transmission) */}
       <mesh renderOrder={2}>
-        <sphereGeometry args={[1.55, 64, 64]} />
-        <primitive object={glassMat.current} attach="material" />
+        <sphereGeometry
+          args={[1.55, viewport.sphereSegments, viewport.sphereSegments]}
+        />
+        <primitive
+          object={
+            viewport.isMobile ? mobileGlassMat.current : glassMat.current
+          }
+          attach="material"
+        />
       </mesh>
     </group>
   );
@@ -330,8 +415,8 @@ export function HeroModels({
       scale={viewport.sceneScale}
       position={[0, viewport.sceneYOffset, 0]}
     >
-      <BlackHoleModel scroll={scroll} />
-      <CompassModel scroll={scroll} pointer={pointer} />
+      <BlackHoleModel scroll={scroll} viewport={viewport} />
+      <CompassModel scroll={scroll} pointer={pointer} viewport={viewport} />
     </group>
   );
 }
