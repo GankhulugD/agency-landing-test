@@ -10,7 +10,7 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode,
+  type MutableRefObject,
 } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Preload } from "@react-three/drei";
@@ -19,9 +19,10 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import * as THREE from "three";
 import { CosmicMorph } from "@/components/hero/CosmicMorph";
-import type { ViewportProfile } from "@/components/hero/types";
+import { ServicesGrid } from "@/components/hero/Services";
+import type { ServiceInteraction, ViewportProfile } from "@/components/hero/types";
 import { SocialLinks } from "@/components/SocialLinks";
-import { brand, hero, services, type Service } from "@/lib/copy";
+import { brand, hero } from "@/lib/copy";
 import { cn } from "@/lib/utils";
 
 gsap.registerPlugin(ScrollTrigger);
@@ -37,6 +38,17 @@ const PointerContext = createContext({ x: 0, y: 0 });
 
 const useScrollState = () => useContext(ScrollContext);
 const usePointer = () => useContext(PointerContext);
+
+const ServiceInteractionContext =
+  createContext<MutableRefObject<ServiceInteraction> | null>(null);
+
+const useServiceInteraction = () => {
+  const ctx = useContext(ServiceInteractionContext);
+  if (!ctx) {
+    throw new Error("useServiceInteraction requires ServiceInteractionContext");
+  }
+  return ctx;
+};
 
 const defaultViewport: ViewportProfile = {
   isMobile: false,
@@ -145,10 +157,12 @@ const starVertexShader = /* glsl */ `
   attribute float aPhase;
   attribute float aBaseOpacity;
   uniform float uTime;
+  uniform float uPulse;
   varying float vOpacity;
 
   void main() {
-    vOpacity = aBaseOpacity * (0.55 + 0.45 * sin(uTime * 1.15 + aPhase));
+    float twinkle = 0.55 + 0.45 * sin(uTime * 1.15 + aPhase);
+    vOpacity = aBaseOpacity * twinkle * (1.0 + uPulse * 0.35);
     vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
     gl_PointSize = clamp(1.4 * (140.0 / -mvPosition.z), 0.6, 2.4);
     gl_Position = projectionMatrix * mvPosition;
@@ -171,6 +185,7 @@ const starFragmentShader = /* glsl */ `
 function CosmicStarfield({ starCount }: { starCount: number }) {
   const pointsRef = useRef<THREE.Points>(null);
   const materialRef = useRef<THREE.ShaderMaterial>(null);
+  const serviceInteraction = useServiceInteraction();
 
   const geometry = useMemo(() => {
     const positions = new Float32Array(starCount * 3);
@@ -197,12 +212,16 @@ function CosmicStarfield({ starCount }: { starCount: number }) {
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
+    const pulse = serviceInteraction.current.pulse;
     if (materialRef.current) {
       materialRef.current.uniforms.uTime.value = t;
+      materialRef.current.uniforms.uPulse.value = pulse;
     }
     if (pointsRef.current) {
       pointsRef.current.position.y = Math.sin(t * 0.06) * 0.35;
       pointsRef.current.position.z = Math.cos(t * 0.045) * 0.5;
+      const s = 1 + pulse * 0.12;
+      pointsRef.current.scale.setScalar(s);
     }
   });
 
@@ -214,6 +233,7 @@ function CosmicStarfield({ starCount }: { starCount: number }) {
         fragmentShader={starFragmentShader}
         uniforms={{
           uTime: { value: 0 },
+          uPulse: { value: 0 },
           uColor: { value: new THREE.Color("#e8eaed") },
         }}
         transparent
@@ -232,11 +252,13 @@ function HeroScene() {
   const scroll = useScrollState();
   const pointer = usePointer();
   const viewport = useViewport();
+  const serviceInteraction = useServiceInteraction();
   const { camera } = useThree();
 
   useFrame(() => {
     const p = scroll.morph;
     const settle = THREE.MathUtils.smoothstep(scroll.ui, 0, 1);
+    const pulse = serviceInteraction.current.pulse;
 
     const radius = THREE.MathUtils.lerp(
       viewport.cameraZ,
@@ -245,8 +267,10 @@ function HeroScene() {
     );
     const height = THREE.MathUtils.lerp(viewport.cameraY, viewport.cameraY - 0.2, p);
     const offsetX = THREE.MathUtils.lerp(0, viewport.isMobile ? -0.25 : -0.6, settle);
+    const tiltX = pulse * 0.06;
+    const tiltY = pulse * 0.04;
 
-    camera.position.set(offsetX, height, radius);
+    camera.position.set(offsetX + tiltY, height + tiltX, radius);
     camera.lookAt(
       THREE.MathUtils.lerp(0, viewport.isMobile ? 0.35 : 0.8, settle),
       viewport.lookAtY,
@@ -278,7 +302,12 @@ function HeroScene() {
 
       <CosmicStarfield starCount={viewport.starCount} />
 
-      <CosmicMorph scroll={scroll} pointer={pointer} viewport={viewport} />
+      <CosmicMorph
+        scroll={scroll}
+        pointer={pointer}
+        viewport={viewport}
+        serviceInteraction={serviceInteraction}
+      />
 
       {viewport.enableBloom && (
         <EffectComposer multisampling={0}>
@@ -299,11 +328,13 @@ function HeroCanvas({
   pointer,
   dpr,
   viewport,
+  serviceInteraction,
 }: {
   scrollState: ScrollState;
   pointer: { x: number; y: number };
   dpr: number | [number, number];
   viewport: ViewportProfile;
+  serviceInteraction: MutableRefObject<ServiceInteraction>;
 }) {
   return (
     <Canvas
@@ -324,14 +355,16 @@ function HeroCanvas({
       dpr={dpr}
     >
       <ViewportContext.Provider value={viewport}>
-        <ScrollContext.Provider value={scrollState}>
-          <PointerContext.Provider value={pointer}>
-            <Suspense fallback={null}>
-              <HeroScene />
-              <Preload all />
-            </Suspense>
-          </PointerContext.Provider>
-        </ScrollContext.Provider>
+        <ServiceInteractionContext.Provider value={serviceInteraction}>
+          <ScrollContext.Provider value={scrollState}>
+            <PointerContext.Provider value={pointer}>
+              <Suspense fallback={null}>
+                <HeroScene />
+                <Preload all />
+              </Suspense>
+            </PointerContext.Provider>
+          </ScrollContext.Provider>
+        </ServiceInteractionContext.Provider>
       </ViewportContext.Provider>
     </Canvas>
   );
@@ -386,50 +419,13 @@ function CursorFollower() {
   );
 }
 
-function GlassCard({
-  children,
-  className,
-  ...props
-}: {
-  children: ReactNode;
-  className?: string;
-} & React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      className={cn(
-        "rounded-sm border border-white/[0.08] bg-white/[0.03] backdrop-blur-md",
-        "transition-colors duration-700 hover:bg-white/[0.045]",
-        className
-      )}
-      {...props}
-    >
-      {children}
-    </div>
-  );
-}
-
-function ServiceRow({ service }: { service: Service }) {
-  return (
-    <GlassCard
-      data-service-card
-      className="group flex flex-col gap-1.5 p-3.5 sm:flex-row sm:items-start sm:gap-4 sm:p-4"
-    >
-      <span className="font-mono text-[10px] tracking-[0.2em] text-champagne/70">
-        {service.index}
-      </span>
-      <div className="min-w-0 flex-1">
-        <h3 className="text-[13px] font-medium tracking-tight text-bone sm:text-sm">
-          {service.title}
-        </h3>
-        <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-bone/45 transition-colors duration-500 group-hover:text-bone/60 sm:mt-1 sm:text-[12px]">
-          {service.description}
-        </p>
-      </div>
-    </GlassCard>
-  );
-}
-
 function HeroFallback() {
+  const serviceInteraction = useRef<ServiceInteraction>({
+    activeIndex: null,
+    targetAngle: 0,
+    pulse: 0,
+  });
+
   return (
     <section className="relative min-h-[100dvh] bg-obsidian px-4 py-20 sm:px-6 sm:py-28">
       <header className="mx-auto mb-12 flex max-w-3xl items-center justify-between">
@@ -448,11 +444,10 @@ function HeroFallback() {
         <p className="mt-6 max-w-lg text-sm leading-relaxed text-bone/50 sm:mt-8">
           {hero.subheading}
         </p>
-        <div className="mt-12 grid grid-cols-1 gap-2 sm:mt-16 md:grid-cols-2 lg:grid-cols-3">
-          {services.map((s) => (
-            <ServiceRow key={s.id} service={s} />
-          ))}
-        </div>
+        <ServicesGrid
+          serviceInteraction={serviceInteraction}
+          gridClassName="mt-12 grid grid-cols-1 gap-2 sm:mt-16 md:grid-cols-2 lg:grid-cols-3"
+        />
       </div>
     </section>
   );
@@ -470,6 +465,11 @@ export function Hero() {
   const servicesRef = useRef<HTMLDivElement>(null);
   const scrollState = useRef<ScrollState>({ morph: 0, ui: 0 });
   const pointer = useRef({ x: 0, y: 0 });
+  const serviceInteraction = useRef<ServiceInteraction>({
+    activeIndex: null,
+    targetAngle: 0,
+    pulse: 0,
+  });
 
   const { fallback, dpr, viewport } = useDeviceProfile();
 
@@ -493,6 +493,11 @@ export function Hero() {
     [updatePointer]
   );
 
+  const onServiceInteraction = useCallback(() => {
+    requestAnimationFrame(() => ScrollTrigger.refresh());
+    window.setTimeout(() => ScrollTrigger.refresh(), 380);
+  }, []);
+
   useEffect(() => {
     if (fallback) return;
     window.addEventListener("mousemove", onPointerMove, { passive: true });
@@ -510,7 +515,7 @@ export function Hero() {
     if (!section || !headline || !servicesEl) return;
 
     const words = headline.querySelectorAll<HTMLElement>("[data-word]");
-    const cards = servicesEl.querySelectorAll("[data-service-card]");
+    const cards = servicesEl.querySelectorAll("[data-service-card-wrap]");
 
     gsap.set(sub, { autoAlpha: 0.6 });
     gsap.set(grid, { autoAlpha: 0 });
@@ -525,7 +530,7 @@ export function Hero() {
           start: "top top",
           end: mobile ? "bottom bottom" : "+=90%",
           scrub: true,
-          pin: !mobile,
+          pin: false,
           anticipatePin: 0,
           invalidateOnRefresh: true,
         },
@@ -592,12 +597,7 @@ export function Hero() {
 
       <section
         ref={sectionRef}
-        className={cn(
-          "relative w-full bg-obsidian",
-          viewport.isMobile
-            ? "min-h-0"
-            : "h-[100dvh] overflow-hidden"
-        )}
+        className="relative w-full min-h-[100dvh] h-auto overflow-visible bg-obsidian"
         aria-label="Namoon Compass hero"
         onMouseMove={onPointerMove}
         onTouchMove={onTouchMove}
@@ -617,12 +617,13 @@ export function Hero() {
                   pointer={pointer.current}
                   dpr={dpr}
                   viewport={viewport}
+                  serviceInteraction={serviceInteraction}
                 />
               </div>
             </div>
 
             <div className="relative z-10">
-              <div className="relative flex min-h-[100dvh] flex-col px-4">
+              <div className="relative flex min-h-[100dvh] h-auto flex-col px-4">
                 <header className="flex shrink-0 items-center justify-between py-4">
                   <span className="font-mono text-[9px] uppercase tracking-[0.35em] text-bone/40">
                     {brand.name}
@@ -666,11 +667,13 @@ export function Hero() {
               <div
                 ref={servicesRef}
                 id="services"
-                className="grid grid-cols-1 gap-2 px-4 pb-10 pt-2"
+                className="services-snap-scroll pb-10 pt-2"
               >
-                {services.map((service) => (
-                  <ServiceRow key={service.id} service={service} />
-                ))}
+                <ServicesGrid
+                  serviceInteraction={serviceInteraction}
+                  onInteractionPulse={onServiceInteraction}
+                  gridClassName="grid grid-cols-1 gap-2 px-4"
+                />
               </div>
             </div>
           </>
@@ -688,11 +691,12 @@ export function Hero() {
                   pointer={pointer.current}
                   dpr={dpr}
                   viewport={viewport}
+                  serviceInteraction={serviceInteraction}
                 />
               </div>
             </div>
 
-            <div className="relative z-10 flex h-full min-h-0 flex-col px-4 sm:px-10 lg:px-16">
+            <div className="relative z-10 flex min-h-[100dvh] h-auto flex-col px-4 sm:px-10 lg:px-16">
               <header className="flex shrink-0 items-center justify-between py-4 sm:py-8">
                 <span className="font-mono text-[9px] uppercase tracking-[0.35em] text-bone/40 sm:text-[10px] sm:tracking-[0.4em]">
                   {brand.name}
@@ -741,11 +745,13 @@ export function Hero() {
               <div
                 ref={servicesRef}
                 id="services"
-                className="mt-auto w-full origin-bottom scale-[0.98] grid grid-cols-1 gap-1.5 pb-2 sm:grid-cols-2 sm:gap-1.5 sm:pb-6 lg:grid-cols-3 lg:gap-1.5 lg:pb-6"
+                className="services-snap-scroll mt-auto w-full pb-2 sm:pb-6"
               >
-                {services.map((service) => (
-                  <ServiceRow key={service.id} service={service} />
-                ))}
+                <ServicesGrid
+                  serviceInteraction={serviceInteraction}
+                  onInteractionPulse={onServiceInteraction}
+                  gridClassName="origin-bottom scale-[0.98] grid grid-cols-1 gap-1.5 sm:grid-cols-2 sm:gap-1.5 lg:grid-cols-3 lg:gap-1.5"
+                />
               </div>
             </div>
           </>

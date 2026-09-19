@@ -36,6 +36,8 @@ export type Service = {
   index: string;
   title: string;
   description: string;
+  capabilities: string[];
+  tags: string[];
 };
 
 export const services: Service[] = [
@@ -45,6 +47,12 @@ export const services: Service[] = [
     title: "Web Development",
     description:
       "Architectural digital products — fast, refined, and built to convert with quiet confidence.",
+    capabilities: [
+      "Next.js & React product builds",
+      "Performance-first architecture",
+      "Design system integration",
+    ],
+    tags: ["Next.js", "React", "TypeScript", "Tailwind"],
   },
   {
     id: "video-audio",
@@ -52,6 +60,12 @@ export const services: Service[] = [
     title: "Video & Audio",
     description:
       "Editorial motion and sound design that carries narrative weight without spectacle.",
+    capabilities: [
+      "Brand films & social cutdowns",
+      "Podcast & voice production",
+      "Sound design & mixing",
+    ],
+    tags: ["Premiere", "After Effects", "Audition", "Motion"],
   },
   {
     id: "digital-ads",
@@ -59,6 +73,12 @@ export const services: Service[] = [
     title: "Digital Advertising",
     description:
       "Measured campaigns with creative restraint — reach the right audience, not the loudest one.",
+    capabilities: [
+      "Meta & Google campaign strategy",
+      "Creative A/B testing",
+      "Conversion tracking & reporting",
+    ],
+    tags: ["Meta Ads", "Google Ads", "Analytics", "CRO"],
   },
   {
     id: "consulting",
@@ -66,6 +86,12 @@ export const services: Service[] = [
     title: "Management Consulting",
     description:
       "Operational clarity and positioning frameworks for teams navigating structural change.",
+    capabilities: [
+      "Brand positioning workshops",
+      "Go-to-market planning",
+      "Team alignment frameworks",
+    ],
+    tags: ["Strategy", "Ops", "Positioning", "Workshops"],
   },
   {
     id: "print",
@@ -73,6 +99,12 @@ export const services: Service[] = [
     title: "Print Design",
     description:
       "Tactile brand systems with the same rigor as their digital counterparts.",
+    capabilities: [
+      "Packaging & editorial layout",
+      "Large-format & signage",
+      "Print-ready production files",
+    ],
+    tags: ["InDesign", "Illustrator", "Print", "Packaging"],
   },
   {
     id: "chatbot",
@@ -80,5 +112,11 @@ export const services: Service[] = [
     title: "Chatbot Services",
     description:
       "Intelligent conversational agents that guide customers, qualify leads, and support your brand around the clock.",
+    capabilities: [
+      "AI chatbot design & deployment",
+      "CRM & webhook integrations",
+      "24/7 lead qualification flows",
+    ],
+    tags: ["AI", "Automation", "CRM", "Support"],
   },
 ];

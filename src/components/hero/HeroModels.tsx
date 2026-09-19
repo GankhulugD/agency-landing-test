@@ -4,7 +4,13 @@ import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { MeshTransmissionMaterial } from "@react-three/drei";
 import * as THREE from "three";
-import type { MorphUniforms, Pointer, ViewportProfile } from "./types";
+import type {
+  MorphUniforms,
+  Pointer,
+  ServiceInteraction,
+  ViewportProfile,
+} from "./types";
+import type { RefObject } from "react";
 
 const CHAMPAGNE = "#d1c7bd";
 const BH_R = 0.56;
@@ -33,9 +39,11 @@ function setGroupFade(group: THREE.Group, scale: number, opacity: number) {
 function BlackHoleModel({
   scroll,
   viewport,
+  serviceInteraction,
 }: {
   scroll: MorphUniforms;
   viewport: ViewportProfile;
+  serviceInteraction: RefObject<ServiceInteraction>;
 }) {
   const { ringSegments, tubeSegments, sphereSegments, enableTransmission } =
     viewport;
@@ -53,8 +61,16 @@ function BlackHoleModel({
       THREE.MathUtils.smoothstep(m, 0, 0.55)
     );
 
+    const pulse = serviceInteraction.current.pulse;
+    if (serviceInteraction.current.pulse > 0.01) {
+      serviceInteraction.current.pulse *= 0.9;
+    } else {
+      serviceInteraction.current.pulse = 0;
+    }
+
     if (groupRef.current) {
-      setGroupFade(groupRef.current, scale, fadeOut);
+      const pulseScale = 1 + pulse * 0.05;
+      setGroupFade(groupRef.current, scale * pulseScale, fadeOut);
       groupRef.current.rotation.y = t * 0.035;
     }
     if (diskRef.current) {
@@ -245,9 +261,11 @@ const NEEDLE_RADIUS = 0.066;
 function CompassNeedle({
   pointer,
   sphereSegments,
+  serviceInteraction,
 }: {
   pointer: Pointer;
   sphereSegments: number;
+  serviceInteraction: RefObject<ServiceInteraction>;
 }) {
   const pivotSeg = Math.max(12, Math.floor(sphereSegments * 0.35));
   const needleRef = useRef<THREE.Group>(null);
@@ -257,17 +275,21 @@ function CompassNeedle({
     const t = state.clock.elapsedTime;
     if (!needleRef.current) return;
 
-    const targetY = pointer.x * 0.45;
+    const si = serviceInteraction.current;
+    const targetY =
+      si.activeIndex !== null ? si.targetAngle : pointer.x * 0.45;
     const targetX = pointer.y * 0.1;
-    spring.current.vy += (targetY - spring.current.y) * 0.065;
+    const springStrength = si.activeIndex !== null ? 0.1 : 0.065;
+    spring.current.vy += (targetY - spring.current.y) * springStrength;
     spring.current.vx += (targetX - spring.current.x) * 0.065;
-    spring.current.vy *= 0.82;
+    spring.current.vy *= si.activeIndex !== null ? 0.78 : 0.82;
     spring.current.vx *= 0.82;
     spring.current.y += spring.current.vy;
     spring.current.x += spring.current.vx;
 
+    const sway = si.activeIndex !== null ? 0.008 : 0.022;
     needleRef.current.rotation.z =
-      spring.current.y + Math.sin(t * 0.85) * 0.022;
+      spring.current.y + Math.sin(t * 0.85) * sway;
     needleRef.current.rotation.x = spring.current.x;
     needleRef.current.position.y = Math.sin(t * 0.55) * 0.025;
   });
@@ -311,10 +333,12 @@ function CompassModel({
   scroll,
   pointer,
   viewport,
+  serviceInteraction,
 }: {
   scroll: MorphUniforms;
   pointer: Pointer;
   viewport: ViewportProfile;
+  serviceInteraction: RefObject<ServiceInteraction>;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const glassMat = useRef(
@@ -371,6 +395,7 @@ function CompassModel({
       <CompassNeedle
         pointer={pointer}
         sphereSegments={viewport.sphereSegments}
+        serviceInteraction={serviceInteraction}
       />
 
       {/* Crystal shell — lightweight material on mobile (no transmission) */}
@@ -393,10 +418,12 @@ export function HeroModels({
   scroll,
   pointer,
   viewport,
+  serviceInteraction,
 }: {
   scroll: MorphUniforms;
   pointer: Pointer;
   viewport: ViewportProfile;
+  serviceInteraction: RefObject<ServiceInteraction>;
 }) {
   const rootRef = useRef<THREE.Group>(null);
 
@@ -415,8 +442,17 @@ export function HeroModels({
       scale={viewport.sceneScale}
       position={[0, viewport.sceneYOffset, 0]}
     >
-      <BlackHoleModel scroll={scroll} viewport={viewport} />
-      <CompassModel scroll={scroll} pointer={pointer} viewport={viewport} />
+      <BlackHoleModel
+        scroll={scroll}
+        viewport={viewport}
+        serviceInteraction={serviceInteraction}
+      />
+      <CompassModel
+        scroll={scroll}
+        pointer={pointer}
+        viewport={viewport}
+        serviceInteraction={serviceInteraction}
+      />
     </group>
   );
 }

@@ -1,7 +1,13 @@
 "use client";
 
 import { HeroModels } from "./HeroModels";
-import type { MorphUniforms, Pointer, ViewportProfile } from "./types";
+import type {
+  MorphUniforms,
+  Pointer,
+  ServiceInteraction,
+  ViewportProfile,
+} from "./types";
+import type { RefObject } from "react";
 
 export type { MorphUniforms } from "./types";
 
@@ -10,12 +16,19 @@ export function CosmicMorph({
   scroll,
   pointer,
   viewport,
+  serviceInteraction,
 }: {
   scroll: MorphUniforms;
   pointer: Pointer;
   viewport: ViewportProfile;
+  serviceInteraction: RefObject<ServiceInteraction>;
 }) {
   return (
-    <HeroModels scroll={scroll} pointer={pointer} viewport={viewport} />
+    <HeroModels
+      scroll={scroll}
+      pointer={pointer}
+      viewport={viewport}
+      serviceInteraction={serviceInteraction}
+    />
   );
 }
