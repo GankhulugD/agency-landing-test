@@ -67,7 +67,7 @@ const defaultViewport: ViewportProfile = {
   cameraZ: 5.2,
   cameraY: 0.55,
   lookAtY: 0,
-  starCount: 2500,
+  starCount: 3000,
   ringSegments: 128,
   tubeSegments: 16,
   sphereSegments: 64,
@@ -96,7 +96,7 @@ function buildViewport(width: number): ViewportProfile {
       cameraZ: 6.5,
       cameraY: 0.72,
       lookAtY: 0.4,
-      starCount: 650,
+      starCount: 3000,
       ringSegments: 32,
       tubeSegments: 8,
       sphereSegments: 32,
@@ -114,7 +114,7 @@ function buildViewport(width: number): ViewportProfile {
       cameraZ: 5.8,
       cameraY: 0.62,
       lookAtY: 0.15,
-      starCount: 1400,
+      starCount: 3000,
       ringSegments: 64,
       tubeSegments: 12,
       sphereSegments: 48,
@@ -160,99 +160,54 @@ function useDeviceProfile() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   3D — Starfield
+   3D — Starfield (micro-point THREE.Points, deep Z distribution)
 ═══════════════════════════════════════════════════════════════════════════ */
 
-const starVertexShader = /* glsl */ `
-  attribute float aPhase;
-  attribute float aBaseOpacity;
-  uniform float uTime;
-  uniform float uPulse;
-  varying float vOpacity;
-
-  void main() {
-    float twinkle = 0.55 + 0.45 * sin(uTime * 1.15 + aPhase);
-    vOpacity = aBaseOpacity * twinkle * (1.0 + uPulse * 0.35);
-    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-    gl_PointSize = clamp(1.4 * (140.0 / -mvPosition.z), 0.6, 2.4);
-    gl_Position = projectionMatrix * mvPosition;
-  }
-`;
-
-const starFragmentShader = /* glsl */ `
-  uniform vec3 uColor;
-  varying float vOpacity;
-
-  void main() {
-    vec2 uv = gl_PointCoord - 0.5;
-    float dist = length(uv);
-    if (dist > 0.5) discard;
-    float alpha = smoothstep(0.5, 0.08, dist) * vOpacity;
-    gl_FragColor = vec4(uColor, alpha);
-  }
-`;
+const STAR_PALETTE = [
+  new THREE.Color("#ffffff"),
+  new THREE.Color("#b0d2ff"),
+  new THREE.Color("#ffe5b4"),
+] as const;
 
 function CosmicStarfield({ starCount }: { starCount: number }) {
   const pointsRef = useRef<THREE.Points>(null);
-  const materialRef = useRef<THREE.ShaderMaterial>(null);
-  const serviceInteraction = useServiceInteraction();
 
-  const geometry = useMemo(() => {
+  const starGeometry = useMemo(() => {
     const positions = new Float32Array(starCount * 3);
-    const phases = new Float32Array(starCount);
-    const baseOpacities = new Float32Array(starCount);
+    const colors = new Float32Array(starCount * 3);
 
     for (let i = 0; i < starCount; i++) {
-      positions[i * 3] = (Math.random() - 0.5) * 90;
-      positions[i * 3 + 1] = (Math.random() - 0.5) * 55;
-      positions[i * 3 + 2] = -10 - Math.random() * 40;
-      phases[i] = Math.random() * Math.PI * 2;
-      baseOpacities[i] = 0.3 + Math.random() * 0.4;
+      positions[i * 3] = (Math.random() - 0.5) * 120;
+      positions[i * 3 + 1] = (Math.random() - 0.5) * 120;
+      positions[i * 3 + 2] = -Math.random() * 80 - 10;
+
+      const color =
+        STAR_PALETTE[Math.floor(Math.random() * STAR_PALETTE.length)]!;
+      colors[i * 3] = color.r;
+      colors[i * 3 + 1] = color.g;
+      colors[i * 3 + 2] = color.b;
     }
 
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    geo.setAttribute("aPhase", new THREE.BufferAttribute(phases, 1));
-    geo.setAttribute(
-      "aBaseOpacity",
-      new THREE.BufferAttribute(baseOpacities, 1)
-    );
-    return geo;
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    return geometry;
   }, [starCount]);
 
-  const scrollActivity = useScrollActivity();
-
-  useFrame((state) => {
-    const scrolling = scrollActivity.current.active;
-    const t = state.clock.elapsedTime;
-    const pulse = serviceInteraction.current.pulse;
-
-    if (materialRef.current) {
-      materialRef.current.uniforms.uTime.value = t;
-      materialRef.current.uniforms.uPulse.value = pulse;
-    }
-
-    if (!pointsRef.current || scrolling) return;
-
-    pointsRef.current.position.y = Math.sin(t * 0.06) * 0.35;
-    pointsRef.current.position.z = Math.cos(t * 0.045) * 0.5;
-    pointsRef.current.scale.setScalar(1 + pulse * 0.12);
+  useFrame((_, delta) => {
+    if (!pointsRef.current) return;
+    pointsRef.current.rotation.y += delta * 0.01;
   });
 
   return (
-    <points ref={pointsRef} geometry={geometry} frustumCulled={false}>
-      <shaderMaterial
-        ref={materialRef}
-        vertexShader={starVertexShader}
-        fragmentShader={starFragmentShader}
-        uniforms={{
-          uTime: { value: 0 },
-          uPulse: { value: 0 },
-          uColor: { value: new THREE.Color("#e8eaed") },
-        }}
+    <points ref={pointsRef} geometry={starGeometry} frustumCulled={false}>
+      <pointsMaterial
+        size={0.08}
+        sizeAttenuation
+        vertexColors
         transparent
+        opacity={0.8}
         depthWrite={false}
-        blending={THREE.AdditiveBlending}
       />
     </points>
   );
@@ -358,7 +313,7 @@ const HeroCanvas = memo(function HeroCanvas({
       camera={{
         fov: viewport.isMobile ? 42 : 40,
         near: 0.1,
-        far: 50,
+        far: 120,
         position: [0, viewport.cameraY, viewport.cameraZ],
       }}
       gl={{

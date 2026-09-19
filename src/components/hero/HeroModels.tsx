@@ -258,10 +258,24 @@ function BlackHoleModel({
   );
 }
 
-/* ─── Needle only inside crystal glass sphere ─── */
+/* ─── Eternal Pose / Log Pose compass inside crystal glass sphere ─── */
 
-const NEEDLE_HALF = 0.37;
-const NEEDLE_RADIUS = 0.066;
+const COMPASS_SPHERE_R = 1.55;
+const TOP_INSET = 0.06;
+const TOP_POLE_Y = COMPASS_SPHERE_R - TOP_INSET;
+const CAP_RADIUS = 0.055;
+const CAP_HEIGHT = 0.022;
+const WIRE_RADIUS = 0.015;
+const WIRE_TOP_Y = TOP_POLE_Y - CAP_HEIGHT;
+const WIRE_HEIGHT = WIRE_TOP_Y;
+const NEEDLE_HALF = 0.4;
+const NEEDLE_RADIUS = 0.058;
+
+const SUSPENSION_METAL = {
+  color: "#1a1a1c",
+  roughness: 0.2,
+  metalness: 0.9,
+} as const;
 
 function CompassNeedle({
   pointer,
@@ -274,7 +288,7 @@ function CompassNeedle({
 }) {
   const pivotSeg = Math.max(12, Math.floor(sphereSegments * 0.35));
   const needleRef = useRef<THREE.Group>(null);
-  const spring = useRef({ y: 0, x: 0, vy: 0, vx: 0 });
+  const spring = useRef({ yaw: 0, pitch: 0, vyaw: 0, vpitch: 0 });
   const scrollActivity = useScrollActivity();
 
   useFrame((state) => {
@@ -283,58 +297,77 @@ function CompassNeedle({
 
     const scrolling = scrollActivity.current.active;
     const si = serviceInteraction.current;
-    const targetY =
+    const targetYaw =
       si.activeIndex !== null ? si.targetAngle : pointer.x * 0.45;
-    const targetX = pointer.y * 0.1;
+    const targetPitch = pointer.y * 0.06;
     const springStrength = si.activeIndex !== null ? 0.1 : 0.065;
-    spring.current.vy += (targetY - spring.current.y) * springStrength;
-    spring.current.vx += (targetX - spring.current.x) * 0.065;
-    spring.current.vy *= si.activeIndex !== null ? 0.78 : 0.82;
-    spring.current.vx *= 0.82;
-    spring.current.y += spring.current.vy;
-    spring.current.x += spring.current.vx;
+    spring.current.vyaw += (targetYaw - spring.current.yaw) * springStrength;
+    spring.current.vpitch += (targetPitch - spring.current.pitch) * 0.05;
+    spring.current.vyaw *= si.activeIndex !== null ? 0.78 : 0.82;
+    spring.current.vpitch *= 0.82;
+    spring.current.yaw += spring.current.vyaw;
+    spring.current.pitch += spring.current.vpitch;
 
-    const sway =
-      scrolling || si.activeIndex !== null ? 0.004 : 0.022;
-    needleRef.current.rotation.z =
-      spring.current.y + Math.sin(t * 0.85) * sway;
-    needleRef.current.rotation.x = spring.current.x;
-    if (!scrolling) {
-      needleRef.current.position.y = Math.sin(t * 0.55) * 0.025;
-    }
+    const floatStrength =
+      scrolling || si.activeIndex !== null ? 0.006 : 0.02;
+
+    needleRef.current.rotation.set(
+      spring.current.pitch + Math.sin(t * 0.55) * floatStrength,
+      spring.current.yaw,
+      Math.cos(t * 0.47) * floatStrength
+    );
   });
 
   return (
-    <group ref={needleRef}>
-      {/* Pivot — dead center */}
-      <mesh>
-        <sphereGeometry args={[0.034, pivotSeg, pivotSeg]} />
-        <meshStandardMaterial
-          color="#b8b8b8"
-          metalness={0.75}
-          roughness={0.25}
-        />
+    <group>
+      {/* Top interior cap + suspension wire (fixed anchor) */}
+      <mesh position={[0, TOP_POLE_Y - CAP_HEIGHT / 2, 0]}>
+        <cylinderGeometry args={[CAP_RADIUS, CAP_RADIUS, CAP_HEIGHT, 16]} />
+        <meshStandardMaterial {...SUSPENSION_METAL} />
       </mesh>
 
-      {/* Gold north — sharp cone pointing up from center */}
-      <mesh position={[0, NEEDLE_HALF / 2, 0]}>
-        <coneGeometry args={[NEEDLE_RADIUS, NEEDLE_HALF, 4]} />
-        <meshStandardMaterial
-          color="#c5a059"
-          metalness={0.6}
-          roughness={0.4}
-        />
+      <mesh position={[0, WIRE_TOP_Y / 2, 0]}>
+        <cylinderGeometry args={[WIRE_RADIUS, WIRE_RADIUS, WIRE_HEIGHT, 16]} />
+        <meshStandardMaterial {...SUSPENSION_METAL} />
       </mesh>
 
-      {/* Silver south — sharp cone pointing down from center */}
-      <mesh position={[0, -NEEDLE_HALF / 2, 0]} rotation={[Math.PI, 0, 0]}>
-        <coneGeometry args={[NEEDLE_RADIUS, NEEDLE_HALF, 4]} />
-        <meshStandardMaterial
-          color="#e0e0e0"
-          metalness={0.8}
-          roughness={0.2}
-        />
-      </mesh>
+      {/* Horizontal needle — yaw on Y, subtle liquid sway on X/Z */}
+      <group ref={needleRef}>
+        <mesh>
+          <sphereGeometry args={[0.028, pivotSeg, pivotSeg]} />
+          <meshStandardMaterial
+            color="#d8d8d8"
+            metalness={0.85}
+            roughness={0.22}
+          />
+        </mesh>
+
+        {/* North tip (+X) — Eternal Pose red indicator */}
+        <mesh
+          position={[NEEDLE_HALF / 2, 0, 0]}
+          rotation={[0, 0, -Math.PI / 2]}
+        >
+          <coneGeometry args={[NEEDLE_RADIUS, NEEDLE_HALF, 4]} />
+          <meshStandardMaterial
+            color="#d62839"
+            metalness={0.55}
+            roughness={0.35}
+          />
+        </mesh>
+
+        {/* South tip (-X) — Log Pose pale body */}
+        <mesh
+          position={[-NEEDLE_HALF / 2, 0, 0]}
+          rotation={[0, 0, Math.PI / 2]}
+        >
+          <coneGeometry args={[NEEDLE_RADIUS, NEEDLE_HALF, 4]} />
+          <meshStandardMaterial
+            color="#eef2f0"
+            metalness={0.65}
+            roughness={0.28}
+          />
+        </mesh>
+      </group>
     </group>
   );
 }
