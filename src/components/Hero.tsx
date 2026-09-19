@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  memo,
   Suspense,
   useCallback,
   useContext,
@@ -11,6 +12,7 @@ import {
   useRef,
   useState,
   type MutableRefObject,
+  type RefObject,
 } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Preload } from "@react-three/drei";
@@ -19,8 +21,16 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import * as THREE from "three";
 import { CosmicMorph } from "@/components/hero/CosmicMorph";
+import {
+  ScrollActivityContext,
+  useScrollActivity,
+} from "@/components/hero/contexts";
 import { ServicesGrid } from "@/components/hero/Services";
-import type { ServiceInteraction, ViewportProfile } from "@/components/hero/types";
+import type {
+  ScrollActivity,
+  ServiceInteraction,
+  ViewportProfile,
+} from "@/components/hero/types";
 import { SocialLinks } from "@/components/SocialLinks";
 import { brand, hero } from "@/lib/copy";
 import { cn } from "@/lib/utils";
@@ -210,19 +220,23 @@ function CosmicStarfield({ starCount }: { starCount: number }) {
     return geo;
   }, [starCount]);
 
+  const scrollActivity = useScrollActivity();
+
   useFrame((state) => {
+    const scrolling = scrollActivity.current.active;
     const t = state.clock.elapsedTime;
     const pulse = serviceInteraction.current.pulse;
+
     if (materialRef.current) {
       materialRef.current.uniforms.uTime.value = t;
       materialRef.current.uniforms.uPulse.value = pulse;
     }
-    if (pointsRef.current) {
-      pointsRef.current.position.y = Math.sin(t * 0.06) * 0.35;
-      pointsRef.current.position.z = Math.cos(t * 0.045) * 0.5;
-      const s = 1 + pulse * 0.12;
-      pointsRef.current.scale.setScalar(s);
-    }
+
+    if (!pointsRef.current || scrolling) return;
+
+    pointsRef.current.position.y = Math.sin(t * 0.06) * 0.35;
+    pointsRef.current.position.z = Math.cos(t * 0.045) * 0.5;
+    pointsRef.current.scale.setScalar(1 + pulse * 0.12);
   });
 
   return (
@@ -323,22 +337,24 @@ function HeroScene() {
   );
 }
 
-function HeroCanvas({
+const HeroCanvas = memo(function HeroCanvas({
   scrollState,
   pointer,
   dpr,
   viewport,
   serviceInteraction,
+  scrollActivity,
 }: {
   scrollState: ScrollState;
   pointer: { x: number; y: number };
   dpr: number | [number, number];
   viewport: ViewportProfile;
   serviceInteraction: MutableRefObject<ServiceInteraction>;
+  scrollActivity: MutableRefObject<ScrollActivity>;
 }) {
   return (
     <Canvas
-      className="absolute inset-0"
+      className="absolute inset-0 transform-gpu"
       camera={{
         fov: viewport.isMobile ? 42 : 40,
         near: 0.1,
@@ -356,19 +372,76 @@ function HeroCanvas({
     >
       <ViewportContext.Provider value={viewport}>
         <ServiceInteractionContext.Provider value={serviceInteraction}>
-          <ScrollContext.Provider value={scrollState}>
-            <PointerContext.Provider value={pointer}>
-              <Suspense fallback={null}>
-                <HeroScene />
-                <Preload all />
-              </Suspense>
-            </PointerContext.Provider>
-          </ScrollContext.Provider>
+          <ScrollActivityContext.Provider value={scrollActivity}>
+            <ScrollContext.Provider value={scrollState}>
+              <PointerContext.Provider value={pointer}>
+                <Suspense fallback={null}>
+                  <HeroScene />
+                  <Preload all />
+                </Suspense>
+              </PointerContext.Provider>
+            </ScrollContext.Provider>
+          </ScrollActivityContext.Provider>
         </ServiceInteractionContext.Provider>
       </ViewportContext.Provider>
     </Canvas>
   );
-}
+});
+
+const HeroBackdrop = memo(function HeroBackdrop({
+  gridRef,
+  scrollState,
+  pointer,
+  dpr,
+  viewport,
+  serviceInteraction,
+  scrollActivity,
+  variant,
+}: {
+  gridRef: RefObject<HTMLDivElement | null>;
+  scrollState: ScrollState;
+  pointer: { x: number; y: number };
+  dpr: number | [number, number];
+  viewport: ViewportProfile;
+  serviceInteraction: MutableRefObject<ServiceInteraction>;
+  scrollActivity: MutableRefObject<ScrollActivity>;
+  variant: "mobile" | "desktop";
+}) {
+  const canvas = (
+    <HeroCanvas
+      scrollState={scrollState}
+      pointer={pointer}
+      dpr={dpr}
+      viewport={viewport}
+      serviceInteraction={serviceInteraction}
+      scrollActivity={scrollActivity}
+    />
+  );
+
+  if (variant === "mobile") {
+    return (
+      <div className="pointer-events-none sticky top-0 -mb-[100dvh] h-[100dvh] w-full">
+        <div
+          ref={gridRef}
+          className="hero-grid absolute inset-0 z-[1] opacity-0"
+          aria-hidden
+        />
+        <div className="absolute inset-0 z-0">{canvas}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-0">
+      <div
+        ref={gridRef}
+        className="hero-grid absolute inset-0 z-[1] opacity-0"
+        aria-hidden
+      />
+      <div className="absolute inset-0 z-0">{canvas}</div>
+    </div>
+  );
+});
 
 /* ═══════════════════════════════════════════════════════════════════════════
    UI — Cursor, glass cards, split headline
@@ -470,6 +543,7 @@ export function Hero() {
     targetAngle: 0,
     pulse: 0,
   });
+  const scrollActivity = useRef<ScrollActivity>({ active: false });
 
   const { fallback, dpr, viewport } = useDeviceProfile();
 
@@ -493,16 +567,35 @@ export function Hero() {
     [updatePointer]
   );
 
-  const onServiceInteraction = useCallback(() => {
-    requestAnimationFrame(() => ScrollTrigger.refresh());
-    window.setTimeout(() => ScrollTrigger.refresh(), 380);
-  }, []);
-
   useEffect(() => {
     if (fallback) return;
     window.addEventListener("mousemove", onPointerMove, { passive: true });
     return () => window.removeEventListener("mousemove", onPointerMove);
   }, [fallback, onPointerMove]);
+
+  useEffect(() => {
+    if (fallback) return;
+
+    let idleTimer = 0;
+    const markScrolling = () => {
+      scrollActivity.current.active = true;
+      window.clearTimeout(idleTimer);
+      idleTimer = window.setTimeout(() => {
+        scrollActivity.current.active = false;
+      }, 140);
+    };
+
+    window.addEventListener("scroll", markScrolling, { passive: true });
+    window.addEventListener("wheel", markScrolling, { passive: true });
+    window.addEventListener("touchmove", markScrolling, { passive: true });
+
+    return () => {
+      window.clearTimeout(idleTimer);
+      window.removeEventListener("scroll", markScrolling);
+      window.removeEventListener("wheel", markScrolling);
+      window.removeEventListener("touchmove", markScrolling);
+    };
+  }, [fallback]);
 
   useLayoutEffect(() => {
     if (fallback) return;
@@ -517,6 +610,9 @@ export function Hero() {
     const words = headline.querySelectorAll<HTMLElement>("[data-word]");
     const cards = servicesEl.querySelectorAll("[data-service-card-wrap]");
 
+    scrollState.current.morph = 0;
+    scrollState.current.ui = 0;
+
     gsap.set(sub, { autoAlpha: 0.6 });
     gsap.set(grid, { autoAlpha: 0 });
     gsap.set(cards, { autoAlpha: 0 });
@@ -530,20 +626,18 @@ export function Hero() {
           start: "top top",
           end: mobile ? "bottom bottom" : "+=90%",
           scrub: true,
-          pin: false,
+          pin: !mobile,
           anticipatePin: 0,
           invalidateOnRefresh: true,
         },
       });
 
-      // 3D morph 0→1 (0–50% warp / 50–100% compass lock)
       tl.to(
         scrollState.current,
         { morph: 1, ease: "none", duration: 0.55 },
         0
       );
 
-      // Headline split-text out (early in scroll)
       tl.to(
         words,
         {
@@ -556,9 +650,12 @@ export function Hero() {
         0.05
       );
 
-      tl.to(sub, { autoAlpha: 0, y: -20, duration: 0.08, ease: "power2.in" }, 0.06);
+      tl.to(
+        sub,
+        { autoAlpha: 0, y: -20, duration: 0.08, ease: "power2.in" },
+        0.06
+      );
 
-      // UI + services reveal (second half of scroll)
       tl.to(
         scrollState.current,
         { ui: 1, ease: "none", duration: 0.35 },
@@ -597,30 +694,26 @@ export function Hero() {
 
       <section
         ref={sectionRef}
-        className="relative w-full min-h-[100dvh] h-auto overflow-visible bg-obsidian"
+        className={cn(
+          "relative w-full bg-obsidian",
+          viewport.isMobile ? "min-h-0" : "h-[100dvh] overflow-hidden"
+        )}
         aria-label="Namoon Compass hero"
         onMouseMove={onPointerMove}
         onTouchMove={onTouchMove}
       >
         {viewport.isMobile ? (
           <>
-            {/* Sticky 3D backdrop — compass visible behind cards while scrolling */}
-            <div className="pointer-events-none sticky top-0 -mb-[100dvh] h-[100dvh] w-full">
-              <div
-                ref={gridRef}
-                className="hero-grid absolute inset-0 z-[1] opacity-0"
-                aria-hidden
-              />
-              <div className="absolute inset-0 z-0">
-                <HeroCanvas
-                  scrollState={scrollState.current}
-                  pointer={pointer.current}
-                  dpr={dpr}
-                  viewport={viewport}
-                  serviceInteraction={serviceInteraction}
-                />
-              </div>
-            </div>
+            <HeroBackdrop
+              variant="mobile"
+              gridRef={gridRef}
+              scrollState={scrollState.current}
+              pointer={pointer.current}
+              dpr={dpr}
+              viewport={viewport}
+              serviceInteraction={serviceInteraction}
+              scrollActivity={scrollActivity}
+            />
 
             <div className="relative z-10">
               <div className="relative flex min-h-[100dvh] h-auto flex-col px-4">
@@ -664,39 +757,28 @@ export function Hero() {
                 </div>
               </div>
 
-              <div
-                ref={servicesRef}
-                id="services"
-                className="services-snap-scroll pb-10 pt-2"
-              >
+              <div ref={servicesRef} id="services" className="px-4 pb-10 pt-2">
                 <ServicesGrid
                   serviceInteraction={serviceInteraction}
-                  onInteractionPulse={onServiceInteraction}
-                  gridClassName="grid grid-cols-1 gap-2 px-4"
+                  gridClassName="grid grid-cols-1 gap-2"
                 />
               </div>
             </div>
           </>
         ) : (
           <>
-            <div className="pointer-events-none absolute inset-0 z-0">
-              <div
-                ref={gridRef}
-                className="hero-grid absolute inset-0 z-[1] opacity-0"
-                aria-hidden
-              />
-              <div className="absolute inset-0 z-0">
-                <HeroCanvas
-                  scrollState={scrollState.current}
-                  pointer={pointer.current}
-                  dpr={dpr}
-                  viewport={viewport}
-                  serviceInteraction={serviceInteraction}
-                />
-              </div>
-            </div>
+            <HeroBackdrop
+              variant="desktop"
+              gridRef={gridRef}
+              scrollState={scrollState.current}
+              pointer={pointer.current}
+              dpr={dpr}
+              viewport={viewport}
+              serviceInteraction={serviceInteraction}
+              scrollActivity={scrollActivity}
+            />
 
-            <div className="relative z-10 flex min-h-[100dvh] h-auto flex-col px-4 sm:px-10 lg:px-16">
+            <div className="relative z-10 flex h-full min-h-0 flex-col overflow-y-auto px-4 sm:px-10 lg:px-16">
               <header className="flex shrink-0 items-center justify-between py-4 sm:py-8">
                 <span className="font-mono text-[9px] uppercase tracking-[0.35em] text-bone/40 sm:text-[10px] sm:tracking-[0.4em]">
                   {brand.name}
@@ -745,12 +827,12 @@ export function Hero() {
               <div
                 ref={servicesRef}
                 id="services"
-                className="services-snap-scroll mt-auto w-full pb-2 sm:pb-6"
+                className="mt-auto w-full origin-bottom scale-[0.98] pb-2 sm:pb-6"
               >
                 <ServicesGrid
                   serviceInteraction={serviceInteraction}
-                  onInteractionPulse={onServiceInteraction}
-                  gridClassName="origin-bottom scale-[0.98] grid grid-cols-1 gap-1.5 sm:grid-cols-2 sm:gap-1.5 lg:grid-cols-3 lg:gap-1.5"
+                  scrollIntoViewOnExpand={false}
+                  gridClassName="grid grid-cols-1 gap-1.5 sm:grid-cols-2 sm:gap-1.5 lg:grid-cols-3 lg:gap-1.5"
                 />
               </div>
             </div>

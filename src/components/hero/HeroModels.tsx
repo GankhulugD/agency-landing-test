@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { MeshTransmissionMaterial } from "@react-three/drei";
 import * as THREE from "three";
+import { useScrollActivity } from "./contexts";
 import type {
   MorphUniforms,
   Pointer,
@@ -50,8 +51,10 @@ function BlackHoleModel({
   const arcSegments = Math.max(48, Math.floor(ringSegments * 0.75));
   const groupRef = useRef<THREE.Group>(null);
   const diskRef = useRef<THREE.Group>(null);
+  const scrollActivity = useScrollActivity();
 
   useFrame((state) => {
+    const scrolling = scrollActivity.current.active;
     const t = state.clock.elapsedTime;
     const m = scroll.morph;
     const fadeOut = 1 - THREE.MathUtils.smoothstep(m, 0.28, 0.55);
@@ -71,9 +74,11 @@ function BlackHoleModel({
     if (groupRef.current) {
       const pulseScale = 1 + pulse * 0.05;
       setGroupFade(groupRef.current, scale * pulseScale, fadeOut);
-      groupRef.current.rotation.y = t * 0.035;
+      if (!scrolling) {
+        groupRef.current.rotation.y = t * 0.035;
+      }
     }
-    if (diskRef.current) {
+    if (diskRef.current && !scrolling) {
       diskRef.current.rotation.z = t * 0.06;
     }
   });
@@ -270,11 +275,13 @@ function CompassNeedle({
   const pivotSeg = Math.max(12, Math.floor(sphereSegments * 0.35));
   const needleRef = useRef<THREE.Group>(null);
   const spring = useRef({ y: 0, x: 0, vy: 0, vx: 0 });
+  const scrollActivity = useScrollActivity();
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
     if (!needleRef.current) return;
 
+    const scrolling = scrollActivity.current.active;
     const si = serviceInteraction.current;
     const targetY =
       si.activeIndex !== null ? si.targetAngle : pointer.x * 0.45;
@@ -287,11 +294,14 @@ function CompassNeedle({
     spring.current.y += spring.current.vy;
     spring.current.x += spring.current.vx;
 
-    const sway = si.activeIndex !== null ? 0.008 : 0.022;
+    const sway =
+      scrolling || si.activeIndex !== null ? 0.004 : 0.022;
     needleRef.current.rotation.z =
       spring.current.y + Math.sin(t * 0.85) * sway;
     needleRef.current.rotation.x = spring.current.x;
-    needleRef.current.position.y = Math.sin(t * 0.55) * 0.025;
+    if (!scrolling) {
+      needleRef.current.position.y = Math.sin(t * 0.55) * 0.025;
+    }
   });
 
   return (
@@ -377,7 +387,10 @@ function CompassModel({
     })()
   );
 
+  const scrollActivity = useScrollActivity();
+
   useFrame((state) => {
+    const scrolling = scrollActivity.current.active;
     const m = scroll.morph;
     const t = state.clock.elapsedTime;
     const fadeIn = THREE.MathUtils.smoothstep(m, 0.35, 0.62);
@@ -385,8 +398,10 @@ function CompassModel({
 
     if (groupRef.current) {
       setGroupFade(groupRef.current, scale, fadeIn);
-      groupRef.current.rotation.y = t * 0.02 * fadeIn;
-      groupRef.current.position.y = Math.sin(t * 0.45) * 0.03 * fadeIn;
+      if (!scrolling) {
+        groupRef.current.rotation.y = t * 0.02 * fadeIn;
+        groupRef.current.position.y = Math.sin(t * 0.45) * 0.03 * fadeIn;
+      }
     }
   });
 

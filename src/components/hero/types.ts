@@ -7,6 +7,10 @@ export type ServiceInteraction = {
   pulse: number;
 };
 
+export type ScrollActivity = {
+  active: boolean;
+};
+
 export type ViewportProfile = {
   isMobile: boolean;
   sceneScale: number;

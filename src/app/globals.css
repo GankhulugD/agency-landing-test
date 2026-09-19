@@ -146,33 +146,6 @@ body {
   animation: service-scan 2s ease-in-out infinite;
 }
 
-/* Services snap scroll — cards snap on page scroll (mobile) or region (desktop) */
-@media (max-width: 767px) {
-  html {
-    scroll-snap-type: y proximity;
-    scroll-padding-top: 0.75rem;
-  }
-}
-
-.services-snap-scroll {
-  overflow-y: auto;
-  overscroll-behavior-y: contain;
-  scroll-snap-type: y proximity;
-  -webkit-overflow-scrolling: touch;
-}
-
-@media (max-width: 767px) {
-  .services-snap-scroll {
-    overflow-y: visible;
-    scroll-snap-type: none;
-  }
-}
-
-.service-snap-card {
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
-}
-
 /* Concept-driven service panel animations */
 @keyframes service-cursor-blink {
   0%,

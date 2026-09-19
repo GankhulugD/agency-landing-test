@@ -1,7 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
-import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
+import {
+  useCallback,
+  useRef,
+  useState,
+  type MouseEvent,
+  type RefObject,
+} from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { services, type Service } from "@/lib/copy";
 import type { ServiceInteraction } from "@/components/hero/types";
 import { cn } from "@/lib/utils";
@@ -11,7 +17,7 @@ import { ServiceExpandedEffect } from "./ServiceExpandedEffect";
 type ServicesProps = {
   gridClassName?: string;
   serviceInteraction: RefObject<ServiceInteraction>;
-  onInteractionPulse?: () => void;
+  scrollIntoViewOnExpand?: boolean;
 };
 
 const springTransition = {
@@ -30,16 +36,10 @@ function computeNeedleAngle(el: HTMLElement) {
   );
 }
 
-function ServiceAccordionPanel({
-  service,
-  isActive,
-}: {
-  service: Service;
-  isActive: boolean;
-}) {
+function ServiceAccordionPanel({ service }: { service: Service }) {
   return (
     <div className="border-x border-b border-amber-400/25 bg-white/[0.06] px-4 pb-4 pt-3 backdrop-blur-md">
-      <ServiceExpandedEffect serviceId={service.id} active={isActive} />
+      <ServiceExpandedEffect serviceId={service.id} active />
 
       <ul className="mt-4 space-y-1.5">
         {service.capabilities.map((item) => (
@@ -66,6 +66,7 @@ function ServiceAccordionPanel({
 
       <a
         href="#contact"
+        onClick={(e) => e.stopPropagation()}
         className="mt-4 inline-block border border-white/[0.12] px-5 py-2 font-mono text-[10px] uppercase tracking-[0.22em] text-bone/70 transition-all duration-500 hover:border-champagne/40 hover:text-bone"
       >
         Request Strategy
@@ -86,28 +87,26 @@ function ServiceAccordionItem({
   index: number;
   isActive: boolean;
   isDimmed: boolean;
-  onSelect: (index: number, el: HTMLElement) => void;
+  onSelect: (index: number, el: HTMLElement, e: MouseEvent<HTMLButtonElement>) => void;
   itemRef?: (el: HTMLDivElement | null) => void;
 }) {
   return (
-    <motion.div
-      layout
+    <div
       ref={itemRef}
       data-service-card-wrap
-      data-snap-card
       className={cn(
-        "service-snap-card transition-opacity duration-500",
+        "transform-gpu transition-opacity duration-500",
         isDimmed && "opacity-40"
       )}
     >
-      <motion.button
-        layout="position"
+      <button
         type="button"
         data-service-card
         onClick={(e) =>
           onSelect(
             index,
-            e.currentTarget.closest("[data-service-card-wrap]") as HTMLElement
+            e.currentTarget.closest("[data-service-card-wrap]") as HTMLElement,
+            e
           )
         }
         className={cn(
@@ -131,91 +130,81 @@ function ServiceAccordionItem({
             {service.description}
           </p>
         </div>
-      </motion.button>
+      </button>
 
       <AnimatePresence initial={false}>
         {isActive && (
           <motion.div
             key={`panel-${service.id}`}
-            layout
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={springTransition}
-            className="overflow-hidden will-change-[height,opacity]"
+            className="overflow-hidden will-change-[height,transform,opacity]"
           >
-            <ServiceAccordionPanel service={service} isActive={isActive} />
+            <ServiceAccordionPanel service={service} />
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+    </div>
   );
 }
 
 export function ServicesGrid({
   gridClassName,
   serviceInteraction,
-  onInteractionPulse,
+  scrollIntoViewOnExpand = false,
 }: ServicesProps) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-  const scrollActiveIntoView = useCallback((index: number) => {
-    const el = cardRefs.current[index];
-    if (!el) return;
-
-    requestAnimationFrame(() => {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  }, []);
-
   const handleSelect = useCallback(
-    (index: number, el: HTMLElement) => {
-      const next = activeIndex === index ? null : index;
-      setActiveIndex(next);
+    (index: number, el: HTMLElement, e: MouseEvent<HTMLButtonElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
 
-      if (next === null) {
-        serviceInteraction.current.activeIndex = null;
-        serviceInteraction.current.pulse = 0;
-        onInteractionPulse?.();
-        return;
-      }
+      setActiveIndex((prev) => {
+        const next = prev === index ? null : index;
 
-      serviceInteraction.current.activeIndex = next;
-      serviceInteraction.current.targetAngle = computeNeedleAngle(el);
-      serviceInteraction.current.pulse = 1;
-      onInteractionPulse?.();
-      scrollActiveIntoView(next);
+        if (next === null) {
+          serviceInteraction.current.activeIndex = null;
+          serviceInteraction.current.pulse = 0;
+        } else {
+          serviceInteraction.current.activeIndex = next;
+          serviceInteraction.current.targetAngle = computeNeedleAngle(el);
+          serviceInteraction.current.pulse = 1;
+
+          if (scrollIntoViewOnExpand) {
+            requestAnimationFrame(() => {
+              cardRefs.current[next]?.scrollIntoView({
+                behavior: "smooth",
+                block: "nearest",
+              });
+            });
+          }
+        }
+
+        return next;
+      });
     },
-    [activeIndex, onInteractionPulse, scrollActiveIntoView, serviceInteraction]
+    [scrollIntoViewOnExpand, serviceInteraction]
   );
 
-  useEffect(() => {
-    if (activeIndex === null) return;
-    const t = window.setTimeout(() => {
-      scrollActiveIntoView(activeIndex);
-      onInteractionPulse?.();
-    }, 320);
-    return () => clearTimeout(t);
-  }, [activeIndex, onInteractionPulse, scrollActiveIntoView]);
-
   return (
-    <LayoutGroup>
-      <motion.div layout className={cn(gridClassName, "w-full")}>
-          {services.map((service, index) => (
-            <ServiceAccordionItem
-              key={service.id}
-              service={service}
-              index={index}
-              isActive={activeIndex === index}
-              isDimmed={activeIndex !== null && activeIndex !== index}
-              onSelect={handleSelect}
-              itemRef={(el) => {
-                cardRefs.current[index] = el;
-              }}
-            />
-          ))}
-      </motion.div>
-    </LayoutGroup>
+    <div className={cn(gridClassName, "w-full transform-gpu")}>
+      {services.map((service, index) => (
+        <ServiceAccordionItem
+          key={service.id}
+          service={service}
+          index={index}
+          isActive={activeIndex === index}
+          isDimmed={activeIndex !== null && activeIndex !== index}
+          onSelect={handleSelect}
+          itemRef={(el) => {
+            cardRefs.current[index] = el;
+          }}
+        />
+      ))}
+    </div>
   );
 }
