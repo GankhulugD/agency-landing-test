@@ -1,21 +1,36 @@
 "use client";
 
 import { ContactSection } from "@/components/ContactSection";
+import { GrainOverlay } from "@/components/GrainOverlay";
 import { Hero } from "@/components/Hero";
-import { brand } from "@/lib/copy";
+import { ImpactStats } from "@/components/ImpactStats";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { PartnerMarquee } from "@/components/PartnerMarquee";
+import { Preloader } from "@/components/Preloader";
+import { ProcessSection } from "@/components/ProcessSection";
+import { ScrollProgress } from "@/components/ScrollProgress";
+import { SiteFooter } from "@/components/SiteFooter";
+import { SmoothScroll } from "@/components/SmoothScroll";
+import { WorkSection } from "@/components/WorkSection";
 
 export function LandingPage() {
   return (
     <div className="min-h-screen bg-obsidian">
+      <Preloader />
+      <SmoothScroll />
+      <ScrollProgress />
+      <GrainOverlay />
+      <LanguageToggle />
+
       <Hero />
 
-      <ContactSection />
+      <PartnerMarquee />
+      <WorkSection />
+      <ImpactStats />
+      <ProcessSection />
 
-      <footer className="relative z-20 border-t border-white/[0.06] bg-obsidian px-6 py-8">
-        <p className="text-center font-mono text-[10px] tracking-[0.2em] text-bone/25">
-          © {new Date().getFullYear()} {brand.name}
-        </p>
-      </footer>
+      <ContactSection />
+      <SiteFooter />
     </div>
   );
 }

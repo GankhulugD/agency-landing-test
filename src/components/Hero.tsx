@@ -32,8 +32,9 @@ import type {
   ViewportProfile,
 } from "@/components/hero/types";
 import { SocialLinks } from "@/components/SocialLinks";
-import { brand, hero } from "@/lib/copy";
+import { brand, hero, services } from "@/lib/copy";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "@/lib/useTranslations";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -206,8 +207,9 @@ function CosmicStarfield({ starCount }: { starCount: number }) {
         sizeAttenuation
         vertexColors
         transparent
-        opacity={0.8}
+        opacity={0.85}
         depthWrite={false}
+        blending={THREE.AdditiveBlending}
       />
     </points>
   );
@@ -402,15 +404,59 @@ const HeroBackdrop = memo(function HeroBackdrop({
    UI — Cursor, glass cards, split headline
 ═══════════════════════════════════════════════════════════════════════════ */
 
+function HeroHeadline({
+  lines,
+  className,
+  headlineRef,
+}: {
+  lines: readonly string[];
+  className: string;
+  headlineRef: RefObject<HTMLHeadingElement | null>;
+}) {
+  return (
+    <h1 ref={headlineRef} className={className}>
+      {lines.map((line, lineIdx) => (
+        <span key={lineIdx} className="block whitespace-nowrap">
+          {line.split(" ").map((word, i, words) => (
+            <span
+              key={`${lineIdx}-${word}-${i}`}
+              className="inline-block overflow-hidden"
+            >
+              <span data-word className="inline-block will-change-transform">
+                {word}
+                {i < words.length - 1 ? "\u00A0" : ""}
+              </span>
+            </span>
+          ))}
+        </span>
+      ))}
+    </h1>
+  );
+}
+
 function CursorFollower() {
   const dotRef = useRef<HTMLDivElement>(null);
   const ringRef = useRef<HTMLDivElement>(null);
   const ringPos = useRef({ x: -100, y: -100 });
   const target = useRef({ x: -100, y: -100 });
+  const hoverState = useRef({ magnetic: false, service: false });
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
-      target.current = { x: e.clientX, y: e.clientY };
+      const el = e.target as HTMLElement | null;
+      hoverState.current.magnetic = !!el?.closest("[data-magnetic]");
+      hoverState.current.service = !!el?.closest("[data-service-card]");
+
+      let { x, y } = { x: e.clientX, y: e.clientY };
+      const magneticEl = el?.closest("[data-magnetic]") as HTMLElement | null;
+      if (magneticEl) {
+        const rect = magneticEl.getBoundingClientRect();
+        const pull = 0.22;
+        x += (rect.left + rect.width / 2 - x) * pull;
+        y += (rect.top + rect.height / 2 - y) * pull;
+      }
+
+      target.current = { x, y };
     };
     window.addEventListener("mousemove", onMove, { passive: true });
     let id: number;
@@ -419,9 +465,17 @@ function CursorFollower() {
       ringPos.current.x += (x - ringPos.current.x) * 0.72;
       ringPos.current.y += (y - ringPos.current.y) * 0.72;
       const dotT = `translate3d(${x}px,${y}px,0) translate(-50%,-50%)`;
-      const ringT = `translate3d(${ringPos.current.x}px,${ringPos.current.y}px,0) translate(-50%,-50%)`;
+      const scale =
+        hoverState.current.magnetic ? 1.75 : hoverState.current.service ? 1.45 : 1;
+      const ringT = `translate3d(${ringPos.current.x}px,${ringPos.current.y}px,0) translate(-50%,-50%) scale(${scale})`;
       if (dotRef.current) dotRef.current.style.transform = dotT;
-      if (ringRef.current) ringRef.current.style.transform = ringT;
+      if (ringRef.current) {
+        ringRef.current.style.transform = ringT;
+        ringRef.current.style.borderColor =
+          hoverState.current.service
+            ? "rgba(209, 199, 189, 0.45)"
+            : "rgba(255, 255, 255, 0.1)";
+      }
       id = requestAnimationFrame(tick);
     };
     id = requestAnimationFrame(tick);
@@ -435,7 +489,7 @@ function CursorFollower() {
     <>
       <div
         ref={ringRef}
-        className="pointer-events-none fixed left-0 top-0 z-[200] h-7 w-7 rounded-full border border-white/10"
+        className="pointer-events-none fixed left-0 top-0 z-[200] h-7 w-7 rounded-full border border-white/10 transition-[border-color] duration-300"
         aria-hidden
       />
       <div
@@ -448,6 +502,7 @@ function CursorFollower() {
 }
 
 function HeroFallback() {
+  const t = useTranslations();
   const serviceInteraction = useRef<ServiceInteraction>({
     activeIndex: null,
     targetAngle: 0,
@@ -458,19 +513,23 @@ function HeroFallback() {
     <section className="relative min-h-[100dvh] bg-obsidian px-4 py-20 sm:px-6 sm:py-28">
       <header className="mx-auto mb-12 flex max-w-3xl items-center justify-between">
         <span className="font-mono text-[10px] uppercase tracking-[0.4em] text-bone/40">
-          {brand.name}
+          {t.brand.name}
         </span>
         <SocialLinks />
       </header>
       <div className="mx-auto max-w-3xl">
         <p className="mb-6 font-mono text-[10px] uppercase tracking-[0.35em] text-champagne/60">
-          {hero.eyebrow}
+          {t.hero.eyebrow}
         </p>
-        <h1 className="text-3xl font-medium leading-[1.08] tracking-tighter text-bone break-words sm:text-5xl md:text-6xl">
-          {hero.headline}
+        <h1 className="text-[clamp(1.35rem,4.8vw,4.75rem)] font-medium leading-[1.08] tracking-tighter text-bone">
+          {t.hero.headlineLines.map((line, lineIdx) => (
+            <span key={lineIdx} className="block whitespace-nowrap">
+              {line}
+            </span>
+          ))}
         </h1>
         <p className="mt-6 max-w-lg text-sm leading-relaxed text-bone/50 sm:mt-8">
-          {hero.subheading}
+          {t.hero.subheading}
         </p>
         <ServicesGrid
           serviceInteraction={serviceInteraction}
@@ -486,6 +545,7 @@ function HeroFallback() {
 ═══════════════════════════════════════════════════════════════════════════ */
 
 export function Hero() {
+  const t = useTranslations();
   const sectionRef = useRef<HTMLElement>(null);
   const headlineRef = useRef<HTMLHeadingElement>(null);
   const subRef = useRef<HTMLParagraphElement>(null);
@@ -568,9 +628,33 @@ export function Hero() {
     scrollState.current.morph = 0;
     scrollState.current.ui = 0;
 
-    gsap.set(sub, { autoAlpha: 0.6 });
+    gsap.set(words, { yPercent: 110 });
+    gsap.set(sub, { autoAlpha: 0, y: 12 });
     gsap.set(grid, { autoAlpha: 0 });
     gsap.set(cards, { autoAlpha: 0 });
+
+    const reducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+
+    if (!reducedMotion) {
+      gsap
+        .timeline({ delay: 0.2 })
+        .to(words, {
+          yPercent: 0,
+          duration: 0.85,
+          stagger: 0.035,
+          ease: "power3.out",
+        })
+        .to(
+          sub,
+          { autoAlpha: 0.6, y: 0, duration: 0.65, ease: "power2.out" },
+          0.12
+        );
+    } else {
+      gsap.set(words, { yPercent: 0 });
+      gsap.set(sub, { autoAlpha: 0.6, y: 0 });
+    }
 
     const mobile = window.innerWidth < 768;
 
@@ -641,13 +725,14 @@ export function Hero() {
 
   if (fallback) return <HeroFallback />;
 
-  const headlineWords = hero.headline.split(" ");
+  const headlineLines = t.hero.headlineLines;
 
   return (
     <>
       {!viewport.isMobile && <CursorFollower />}
 
       <section
+        id="hero"
         ref={sectionRef}
         className={cn(
           "relative w-full bg-obsidian",
@@ -672,41 +757,27 @@ export function Hero() {
 
             <div className="relative z-10">
               <div className="relative flex min-h-[100dvh] h-auto flex-col px-4">
-                <header className="flex shrink-0 items-center justify-between py-4">
+                <header className="flex shrink-0 items-center justify-between py-4 pr-20">
                   <span className="font-mono text-[9px] uppercase tracking-[0.35em] text-bone/40">
-                    {brand.name}
+                    {t.brand.name}
                   </span>
                   <SocialLinks />
                 </header>
                 <div className="pointer-events-none absolute inset-x-0 top-[28%] flex -translate-y-1/2 justify-center px-4">
                   <div className="max-w-4xl text-center">
                     <p className="mb-3 font-mono text-[9px] uppercase tracking-[0.3em] text-champagne/55">
-                      {hero.eyebrow}
+                      {t.hero.eyebrow}
                     </p>
-                    <h1
-                      ref={headlineRef}
-                      className="text-3xl font-medium leading-[1.08] tracking-tighter text-bone break-words"
-                    >
-                      {headlineWords.map((word, i) => (
-                        <span
-                          key={`${word}-${i}`}
-                          className="inline-block overflow-hidden"
-                        >
-                          <span
-                            data-word
-                            className="inline-block will-change-transform"
-                          >
-                            {word}
-                            {i < headlineWords.length - 1 ? "\u00A0" : ""}
-                          </span>
-                        </span>
-                      ))}
-                    </h1>
+                    <HeroHeadline
+                      lines={headlineLines}
+                      headlineRef={headlineRef}
+                      className="hero-headline text-[clamp(1.35rem,4.8vw,2.25rem)] font-medium leading-[1.1] tracking-tighter text-bone"
+                    />
                     <p
                       ref={subRef}
                       className="mx-auto mt-4 max-w-md px-2 text-[12px] leading-relaxed text-bone/45"
                     >
-                      {hero.subheading}
+                      {t.hero.subheading}
                     </p>
                   </div>
                 </div>
@@ -734,47 +805,28 @@ export function Hero() {
             />
 
             <div className="relative z-10 flex h-full min-h-0 flex-col overflow-y-auto px-4 sm:px-10 lg:px-16">
-              <header className="flex shrink-0 items-center justify-between py-4 sm:py-8">
+              <header className="flex shrink-0 items-center justify-between py-4 pr-20 sm:py-8 sm:pr-24">
                 <span className="font-mono text-[9px] uppercase tracking-[0.35em] text-bone/40 sm:text-[10px] sm:tracking-[0.4em]">
-                  {brand.name}
+                  {t.brand.name}
                 </span>
-                <div className="flex items-center gap-4 sm:gap-6">
-                  <SocialLinks />
-                  <span className="hidden font-mono text-[10px] tracking-[0.25em] text-bone/25 md:block">
-                    Scroll
-                  </span>
-                </div>
+                <SocialLinks />
               </header>
 
               <div className="pointer-events-none absolute inset-x-0 top-[28%] flex -translate-y-1/2 justify-center px-4 sm:top-[34%] md:top-[38%]">
                 <div className="max-w-4xl text-center">
                   <p className="mb-3 font-mono text-[9px] uppercase tracking-[0.3em] text-champagne/55 sm:mb-5 sm:text-[10px] sm:tracking-[0.35em]">
-                    {hero.eyebrow}
+                    {t.hero.eyebrow}
                   </p>
-                  <h1
-                    ref={headlineRef}
-                    className="text-3xl font-medium leading-[1.08] tracking-tighter text-bone break-words sm:text-5xl md:text-6xl lg:text-7xl"
-                  >
-                    {headlineWords.map((word, i) => (
-                      <span
-                        key={`${word}-${i}`}
-                        className="inline-block overflow-hidden"
-                      >
-                        <span
-                          data-word
-                          className="inline-block will-change-transform"
-                        >
-                          {word}
-                          {i < headlineWords.length - 1 ? "\u00A0" : ""}
-                        </span>
-                      </span>
-                    ))}
-                  </h1>
+                  <HeroHeadline
+                    lines={headlineLines}
+                    headlineRef={headlineRef}
+                    className="hero-headline text-[clamp(1.75rem,5.2vw,4.75rem)] font-medium leading-[1.08] tracking-tighter text-bone"
+                  />
                   <p
                     ref={subRef}
                     className="mx-auto mt-4 max-w-md px-2 text-[12px] leading-relaxed text-bone/45 sm:mt-6 sm:text-[13px]"
                   >
-                    {hero.subheading}
+                    {t.hero.subheading}
                   </p>
                 </div>
               </div>

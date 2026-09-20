@@ -1,5 +1,7 @@
+import { SectionReveal } from "@/components/SectionReveal";
 import { contact, socialLinks } from "@/lib/copy";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "@/lib/useTranslations";
 
 const linkClass =
   "group flex items-center gap-4 rounded-sm border border-white/[0.08] bg-white/[0.03] px-5 py-4 backdrop-blur-md transition-colors duration-500 hover:border-champagne/30 hover:bg-white/[0.05]";
@@ -30,7 +32,7 @@ function PhoneIcon({ className }: { className?: string }) {
       strokeWidth="1.5"
       aria-hidden
     >
-      <path d="M5 4h3l2 5-2.5 1.5a11 11 0 0 0 5 5L14 13l5 2v3a2 2 0 0 1-2 2A15 15 0 0 1 3 6a2 2 0 0 1 2-2z" />
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
     </svg>
   );
 }
@@ -45,9 +47,9 @@ function InstagramIcon({ className }: { className?: string }) {
       strokeWidth="1.5"
       aria-hidden
     >
-      <rect x="3" y="3" width="18" height="18" rx="5" />
-      <circle cx="12" cy="12" r="4" />
-      <circle cx="17.5" cy="6.5" r="0.75" fill="currentColor" stroke="none" />
+      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
     </svg>
   );
 }
@@ -57,35 +59,35 @@ function FacebookIcon({ className }: { className?: string }) {
     <svg
       className={className}
       viewBox="0 0 24 24"
-      fill="currentColor"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
       aria-hidden
     >
-      <path d="M13.5 22v-8h2.7l.4-3.2H13.5V9.1c0-.9.3-1.6 1.7-1.6h1.5V4.3c-.3 0-1.2-.1-2.3-.1-2.3 0-3.8 1.4-3.8 4v2.6H7.8v3.2h2.8v8h2.9z" />
+      <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
     </svg>
   );
 }
 
-const socialIcons = {
-  instagram: InstagramIcon,
-  facebook: FacebookIcon,
-} as const;
-
 export function ContactSection() {
+  const t = useTranslations();
+  
   return (
-    <section
-      id="contact"
-      className="relative z-20 scroll-mt-6 border-t border-white/[0.06] bg-obsidian px-6 py-20 sm:px-10 sm:py-28"
-    >
-      <div className="mx-auto max-w-lg">
+    <SectionReveal>
+      <section
+        id="contact"
+        className="relative z-20 scroll-mt-6 border-t border-white/[0.06] bg-obsidian px-6 py-24 sm:px-10 sm:py-32"
+      >
+        <div className="mx-auto max-w-lg rounded-sm border border-white/[0.06] bg-white/[0.02] p-8 backdrop-blur-sm sm:p-10">
         <div className="text-center">
           <p className="font-mono text-[10px] uppercase tracking-[0.35em] text-champagne/50">
-            Contact
+            {t.contact.eyebrow}
           </p>
           <h2 className="mt-4 text-2xl font-medium tracking-tighter text-bone sm:text-3xl">
-            Begin with clarity.
+            {t.contact.heading}
           </h2>
           <p className="mt-4 text-sm leading-relaxed text-bone/45">
-            Reach us directly — call, email, or connect on social.
+            {t.contact.subheading}
           </p>
         </div>
 
@@ -94,69 +96,51 @@ export function ContactSection() {
             href={`mailto:${contact.email}`}
             className={linkClass}
           >
-            <MailIcon className="h-4 w-4 shrink-0 text-champagne/60 transition-colors group-hover:text-champagne" />
-            <div className="min-w-0 text-left">
-              <p className="font-mono text-[9px] uppercase tracking-[0.25em] text-bone/35">
-                Email
+            <MailIcon className="h-5 w-5 text-bone/40 transition-colors group-hover:text-champagne/70" />
+            <div className="flex-1">
+              <p className="font-mono text-[9px] uppercase tracking-[0.3em] text-bone/35">
+                {t.contact.email}
               </p>
-              <p className="mt-0.5 truncate text-sm text-bone/80 transition-colors group-hover:text-bone">
-                {contact.email}
-              </p>
+              <p className="mt-0.5 text-sm text-bone/70">{contact.email}</p>
             </div>
           </a>
 
           {contact.phones.map((phone) => (
             <a key={phone.tel} href={`tel:${phone.tel}`} className={linkClass}>
-              <PhoneIcon className="h-4 w-4 shrink-0 text-champagne/60 transition-colors group-hover:text-champagne" />
-              <div className="text-left">
-                <p className="font-mono text-[9px] uppercase tracking-[0.25em] text-bone/35">
-                  Phone
+              <PhoneIcon className="h-5 w-5 text-bone/40 transition-colors group-hover:text-champagne/70" />
+              <div className="flex-1">
+                <p className="font-mono text-[9px] uppercase tracking-[0.3em] text-bone/35">
+                  {t.contact.phone}
                 </p>
-                <p className="mt-0.5 text-sm text-bone/80 transition-colors group-hover:text-bone">
-                  {phone.display}
+                <p className="mt-0.5 text-sm text-bone/70">{phone.display}</p>
+              </div>
+            </a>
+          ))}
+
+          {socialLinks.map((social) => (
+            <a
+              key={social.id}
+              href={social.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(linkClass, "transition-transform active:scale-[0.98]")}
+            >
+              {social.id === "instagram" ? (
+                <InstagramIcon className="h-5 w-5 text-bone/40 transition-colors group-hover:text-champagne/70" />
+              ) : (
+                <FacebookIcon className="h-5 w-5 text-bone/40 transition-colors group-hover:text-champagne/70" />
+              )}
+              <div className="flex-1">
+                <p className="font-mono text-[9px] uppercase tracking-[0.3em] text-bone/35">
+                  {t.contact.social}
                 </p>
+                <p className="mt-0.5 text-sm text-bone/70">{social.label}</p>
               </div>
             </a>
           ))}
         </div>
-
-        <div className="mt-8">
-          <p className="mb-3 text-center font-mono text-[9px] uppercase tracking-[0.3em] text-bone/30">
-            Social
-          </p>
-          <div className="space-y-2">
-            {socialLinks.map((link) => {
-              const Icon = socialIcons[link.id];
-              return (
-                <a
-                  key={link.id}
-                  href={link.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={linkClass}
-                >
-                  <Icon className="h-4 w-4 shrink-0 text-champagne/60 transition-colors group-hover:text-champagne" />
-                  <div className="text-left">
-                    <p className="font-mono text-[9px] uppercase tracking-[0.25em] text-bone/35">
-                      {link.label}
-                    </p>
-                    <p
-                      className={cn(
-                        "mt-0.5 text-sm text-bone/80 transition-colors group-hover:text-bone",
-                        link.id === "instagram" && "truncate"
-                      )}
-                    >
-                      {link.id === "instagram"
-                        ? "@youth_marketing_agency"
-                        : "Youth Marketing Agency"}
-                    </p>
-                  </div>
-                </a>
-              );
-            })}
-          </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </SectionReveal>
   );
 }

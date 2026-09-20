@@ -17,6 +17,7 @@
   --color-glass: rgba(255, 255, 255, 0.03);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-mongolian: var(--font-onest);
 }
 
 body {
@@ -24,6 +25,44 @@ body {
   color: var(--bone);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   cursor: none;
+}
+
+/* Mongolian — Onest, heavier weights for Cyrillic legibility */
+html.lang-mn body {
+  font-family: var(--font-onest), system-ui, sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.015em;
+  -webkit-font-smoothing: antialiased;
+}
+
+html.lang-mn p,
+html.lang-mn li,
+html.lang-mn span,
+html.lang-mn a,
+html.lang-mn button {
+  font-weight: 500;
+}
+
+html.lang-mn .font-mono {
+  font-family: var(--font-onest), system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+html.lang-mn h1,
+html.lang-mn .hero-headline {
+  font-weight: 800 !important;
+  letter-spacing: -0.01em;
+}
+
+html.lang-mn h2,
+html.lang-mn h3 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+html.lang-mn .font-medium {
+  font-weight: 600;
 }
 
 @media (max-width: 767px), (prefers-reduced-motion: reduce) {
@@ -262,4 +301,79 @@ body {
 
 .service-ai-status {
   animation: service-ai-pulse 2s ease-out infinite;
+}
+
+/* Cinematic overlays */
+.grain-overlay {
+  opacity: 0.045;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+
+.vignette-overlay {
+  background: radial-gradient(
+    ellipse 75% 65% at 50% 45%,
+    transparent 45%,
+    rgba(0, 0, 0, 0.45) 100%
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grain-overlay,
+  .vignette-overlay {
+    display: none;
+  }
+}
+
+/* Partner marquee */
+@keyframes marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee-track {
+  animation: marquee-scroll 42s linear infinite;
+}
+
+.marquee-mask {
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 12%,
+    black 88%,
+    transparent
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
+  }
+}
+
+/* Work section — horizontal snap scroll (native, no GSAP pin) */
+.work-scroll {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.work-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.work-scroll .work-card {
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .work-scroll {
+    scroll-snap-type: none;
+  }
 }

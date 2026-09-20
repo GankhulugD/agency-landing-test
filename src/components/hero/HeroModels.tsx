@@ -288,39 +288,43 @@ function CompassNeedle({
 }) {
   const pivotSeg = Math.max(12, Math.floor(sphereSegments * 0.35));
   const needleRef = useRef<THREE.Group>(null);
-  const spring = useRef({ yaw: 0, pitch: 0, vyaw: 0, vpitch: 0 });
+  const spring = useRef({ yaw: 0, vyaw: 0 });
   const scrollActivity = useScrollActivity();
 
   useFrame((state) => {
-    const t = state.clock.elapsedTime;
+    const elapsed = state.clock.elapsedTime;
     if (!needleRef.current) return;
 
     const scrolling = scrollActivity.current.active;
     const si = serviceInteraction.current;
     const targetYaw =
       si.activeIndex !== null ? si.targetAngle : pointer.x * 0.45;
-    const targetPitch = pointer.y * 0.06;
     const springStrength = si.activeIndex !== null ? 0.1 : 0.065;
     spring.current.vyaw += (targetYaw - spring.current.yaw) * springStrength;
-    spring.current.vpitch += (targetPitch - spring.current.pitch) * 0.05;
     spring.current.vyaw *= si.activeIndex !== null ? 0.78 : 0.82;
-    spring.current.vpitch *= 0.82;
     spring.current.yaw += spring.current.vyaw;
-    spring.current.pitch += spring.current.vpitch;
 
-    const floatStrength =
-      scrolling || si.activeIndex !== null ? 0.006 : 0.02;
+    const floatAmp = scrolling || si.activeIndex !== null ? 0.025 : 0.05;
+    const swayX = Math.sin(elapsed * 0.55) * floatAmp;
+    const swayZ = Math.cos(elapsed * 0.47) * floatAmp;
+    const bobY = Math.sin(elapsed * 0.62) * floatAmp * 0.35;
 
-    needleRef.current.rotation.set(
-      spring.current.pitch + Math.sin(t * 0.55) * floatStrength,
-      spring.current.yaw,
-      Math.cos(t * 0.47) * floatStrength
+    // Horizontal needle: base flat (x/z ≈ 0), yaw on Y for magnetic direction
+    needleRef.current.rotation.set(swayX * 0.4, spring.current.yaw, swayZ * 0.4);
+    needleRef.current.position.set(
+      Math.sin(elapsed * 0.38) * floatAmp * 0.25,
+      bobY,
+      Math.cos(elapsed * 0.41) * floatAmp * 0.2
     );
   });
 
   return (
     <group>
-      {/* Top interior cap + suspension wire (fixed anchor) */}
+      {/* Top interior cap disc + suspension wire (fixed anchor) */}
+      <mesh position={[0, TOP_POLE_Y, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[CAP_RADIUS * 1.15, 16]} />
+        <meshStandardMaterial {...SUSPENSION_METAL} side={THREE.DoubleSide} />
+      </mesh>
       <mesh position={[0, TOP_POLE_Y - CAP_HEIGHT / 2, 0]}>
         <cylinderGeometry args={[CAP_RADIUS, CAP_RADIUS, CAP_HEIGHT, 16]} />
         <meshStandardMaterial {...SUSPENSION_METAL} />
